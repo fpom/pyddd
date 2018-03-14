@@ -53,7 +53,6 @@ cdef ddd makeddd (DDD *d) :
     return obj
 
 cdef class ddd (xdd) :
-    cdef DDD *d
     def __init__ (self, **valuation) :
         """Create a `ddd` storing the values provided in `valuation`.
 
@@ -356,7 +355,6 @@ cdef xdd sdd_iterator_value (sdd_iterator i) :
         raise NotImplementedError("cannot cast arc label")
 
 cdef class sdd (xdd) :
-    cdef SDD *s
     def __init__ (self, **valuation) :
         """Create a `sdd` storing the values provided in `valuation`.
 
