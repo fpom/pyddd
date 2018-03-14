@@ -4,6 +4,9 @@ cdef extern from "ddd/DDD.h" :
 cdef extern from "ddd/SDD.h" :
     cdef cppclass SDD
 
+cdef extern from "ddd/SHom.h" :
+    cdef cppclass Shom
+
 cdef class xdd :
     pass
 
