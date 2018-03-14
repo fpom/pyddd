@@ -19,7 +19,8 @@ extensions = [Extension("ddd",
                         include_dirs = [args.I],
                         libraries = ["DDD"],
                         library_dirs = [args.L],
-                        language="c++")]
+                        language="c++",
+                        extra_compile_args=["-std=c++11"])]
 
 setup(ext_modules=cythonize(extensions),
       script_args=["build_ext", "--inplace"])
