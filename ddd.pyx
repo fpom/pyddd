@@ -1,6 +1,5 @@
 from libcpp.pair cimport pair
 from libcpp.vector cimport vector
-from libcpp.string cimport string
 
 import collections, itertools
 
@@ -15,20 +14,6 @@ cdef class xdd :
 ##
 ## DDD
 ##
-
-cdef extern from "ddd/DDD.h" :
-    cdef cppclass DDD :
-        @staticmethod
-        void varName (int var, const string &name)
-        @staticmethod
-        const string getvarName (int var)
-        DDD (const DDD &)
-        DDD (int var, short val, const DDD &d)
-        bint empty () const
-        bint set_equal (const DDD &b) const
-        long double set_size () const
-        int variable() const
-        size_t hash () const
 
 cdef extern from "dddwrap.h" :
     cdef const DDD ddd_ONE
@@ -304,14 +289,6 @@ cdef class ddd (xdd) :
 ## SDD
 ##
 
-cdef extern from "ddd/SDD.h" :
-    cdef cppclass SDD :
-        SDD (const SDD &)
-        long double nbStates() const
-        bint empty() const
-        size_t set_hash() const
-        int variable() const
-
 cdef extern from "dddwrap.h" :
     cdef SDD *sdd_new_SDDs (int var, const SDD &val, const SDD &s)
     cdef SDD *sdd_new_SDDd (int var, const DDD &val, const SDD &s)
@@ -474,7 +451,10 @@ cdef class sdd (xdd) :
         >>> sdd(a=ddd(x=1), b=ddd(y=2)).varname()
         'a'
         """
-        return SRAV[self.s.variable()]
+        try :
+            return SRAV[self.s.variable()]
+        except KeyError :
+            return "#%s" % self.s.variable()
     cpdef sdd pick (sdd self) :
         """Pick one element in the `sdd` and return it as a `sdd`.
 
@@ -487,6 +467,8 @@ cdef class sdd (xdd) :
         """
         cdef sdd_iterator it
         cdef xdd val
+        cdef ddd d
+        cdef sdd s
         if sdd_STOP(self.s[0]) :
             return self
         else :
@@ -494,10 +476,12 @@ cdef class sdd (xdd) :
             child = makesdd(sdd_iterator_sdd(it))
             val = sdd_iterator_value(it)
             if isinstance(val, ddd) :
-                return makesdd(sdd_new_SDDd(self.s.variable(), (<ddd>val).d[0],
+                d = (<ddd>val).pick()
+                return makesdd(sdd_new_SDDd(self.s.variable(), d.d[0],
                                             sdd_ONE)) + child.pick()
             else :
-                return makesdd(sdd_new_SDDs(self.s.variable(), (<sdd>val).s[0],
+                s = (<sdd>val).pick()
+                return makesdd(sdd_new_SDDs(self.s.variable(), s.s[0],
                                             sdd_ONE)) + child.pick()
     cpdef dict dict_pick (sdd self) :
         """Pick one element in the `sdd` and return it as a `dict`.
@@ -638,3 +622,76 @@ cdef class sdd (xdd) :
         True
         """
         return sdd_STOP(self.s[0])
+
+##
+## Shom
+##
+
+cdef extern from "dddwrap.h" :
+    cdef Shom *shom_new_Shom (const SDD &s)
+    cdef Shom *shom_new_Shom_null ()
+    cdef Shom *shom_neg(const Shom &s)
+    cdef bint shom_eq(const Shom &a, const Shom &b)
+    cdef bint shom_ne(const Shom &a, const Shom &b)
+    cdef SDD *shom_call(const Shom &h, const SDD &s)
+    cdef Shom *shom_fixpoint(const Shom &h)
+    cdef Shom *shom_union(const Shom &a, const Shom &b)
+    cdef Shom *shom_circ(const Shom &a, const Shom &b)
+    cdef Shom *shom_intersect_Shom_SDD(const Shom &a, const SDD &b)
+    cdef Shom *shom_intersect_Shom_Shom(const Shom &a, const Shom &b)
+    cdef Shom *shom_minus_Shom_SDD(const Shom &a, const SDD &b)
+    cdef Shom *shom_minus_Shom_Shom(const Shom &a, const Shom &b)
+
+cdef shom makeshom (Shom *h) :
+    cdef shom obj = shom.__new__(shom)
+    obj.h = h
+    return obj
+
+cdef class shom :
+    def __init__ (shom self, sdd s=None) :
+        if s is not None :
+            self.h = new Shom(s.s[0])
+        else :
+            self.h = new Shom()
+    @classmethod
+    def ident (cls) :
+        return shom()
+    @classmethod
+    def empty (cls) :
+        return makeshom(shom_new_Shom_null())
+    def __neg__ (shom self) :
+        return makeshom(shom_neg(self.h[0]))
+    def __eq__ (shom self, shom other) :
+        return shom_eq(self.h[0], other.h[0])
+    def __ne__ (shom self, shom other) :
+        return shom_ne(self.h[0], other.h[0])
+    def __call__ (shom self, sdd dom) :
+        return makesdd(shom_call(self.h[0], dom.s[0]))
+    def __hash__ (shom self) :
+        return int(self.s.hash())
+    cpdef fixpoint (shom self) :
+        return makeshom(shom_fixpoint(self.h[0]))
+    cpdef star (shom self) :
+        return (self | shom()).fixpoint()
+    def __or__ (shom self, shom other) :
+        return makeshom(shom_union(self.h[0], other.h[0]))
+    def __mul__ (shom self, shom other) :
+        return makeshom(shom_circ(self.h[0], other.h[0]))
+    def __and__ (shom self, other) :
+        if isinstance(other, sdd) :
+            return makeshom(shom_intersect_Shom_SDD(self.h[0], (<sdd>other).s[0]))
+        elif isinstance(other, shom) :
+            return makeshom(shom_intersect_Shom_Shom(self.h[0], (<shom>other).h[0]))
+        else :
+            raise TypeError("expected 'shom' of 'sdd', got %r"
+                            % other.__class__.__name__)
+    def __iand__ (shom self, sdd other) :
+        return self & other
+    def __sub__ (shom self, other) :
+        if isinstance(other, sdd) :
+            return makeshom(shom_minus_Shom_SDD(self.h[0], (<sdd>other).s[0]))
+        elif isinstance(other, shom) :
+            return makeshom(shom_minus_Shom_Shom(self.h[0], (<shom>other).h[0]))
+        else :
+            raise TypeError("expected 'shom' of 'sdd', got %r"
+                            % other.__class__.__name__)

@@ -46,3 +46,18 @@
 #define sdd_iterator_SDD_value(i) dynamic_cast<SDD*>(i->first)
 #define sdd_iterator_GSDD_value(i) new SDD(dynamic_cast<GSDD*>(i->first)[0])
 #define sdd_iterator_DDD_value(i) dynamic_cast<DDD*>(i->first)
+
+#define shom_new_Shom_null() new Shom(Shom::null)
+#define shom_neg(h) new Shom(!h)
+#define shom_eq(a,b) (a == b)
+#define shom_ne(a,b) (a != b)
+#define shom_call(h,s) new SDD(h(s))
+#define shom_fixpoint(h) new Shom(fixpoint(h))
+#define shom_union(a,b) new Shom(a + b)
+#define shom_circ(a,b) new Shom(a & b)
+#define shom_intersect_SDD_Shom(a,b) new Shom(a * b)
+#define shom_intersect_Shom_SDD(a,b) new Shom(a * b)
+#define shom_intersect_Shom_Shom(a,b) new Shom(a * b)
+#define shom_minus_Shom_SDD(a,b) new Shom(a - b)
+#define shom_minus_Shom_Shom(a,b) new Shom(a - b)
+
