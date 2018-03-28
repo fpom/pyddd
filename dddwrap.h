@@ -1,4 +1,5 @@
 #include <string>
+#include <sstream>
 #include "ddd/DDD.h"
 
 #define ddd_ONE DDD::one
@@ -61,3 +62,4 @@
 #define shom_minus_Shom_SDD(a,b) new Shom(a - b)
 #define shom_minus_Shom_Shom(a,b) new Shom(a - b)
 
+#define shom_print(h,s) s << h

@@ -641,6 +641,11 @@ cdef extern from "dddwrap.h" :
     cdef Shom *shom_intersect_Shom_Shom(const Shom &a, const Shom &b)
     cdef Shom *shom_minus_Shom_SDD(const Shom &a, const SDD &b)
     cdef Shom *shom_minus_Shom_Shom(const Shom &a, const Shom &b)
+    cdef void shom_print(const Shom &h, ostringstream &s)
+
+cdef extern from "dddwrap.h" namespace "std" :
+    cdef cppclass ostringstream :
+        string str()
 
 cdef shom makeshom (Shom *h) :
     cdef shom obj = shom.__new__(shom)
@@ -695,3 +700,7 @@ cdef class shom :
         else :
             raise TypeError("expected 'shom' of 'sdd', got %r"
                             % other.__class__.__name__)
+    cpdef str dumps (shom self) :
+        cdef ostringstream oss
+        shom_print(self.h[0], oss)
+        return oss.str().decode()

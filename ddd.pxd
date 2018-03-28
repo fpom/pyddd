@@ -68,5 +68,6 @@ cdef class shom :
     cdef Shom *h
     cpdef fixpoint (shom self)
     cpdef star (shom self)
+    cpdef str dumps (shom self)
 
 cdef shom makeshom (Shom *h)
