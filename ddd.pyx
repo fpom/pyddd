@@ -690,7 +690,7 @@ cdef class shom :
         else :
             raise TypeError("expected 'shom' of 'sdd', got %r"
                             % other.__class__.__name__)
-    def __iand__ (shom self, sdd other) :
+    def __rand__ (shom self, sdd other) :
         return self & other
     def __sub__ (shom self, other) :
         if isinstance(other, sdd) :
