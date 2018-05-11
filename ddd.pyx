@@ -642,6 +642,7 @@ cdef extern from "dddwrap.h" :
     cdef Shom *shom_minus_Shom_SDD(const Shom &a, const SDD &b)
     cdef Shom *shom_minus_Shom_Shom(const Shom &a, const Shom &b)
     cdef void shom_print(const Shom &h, ostringstream &s)
+    cdef Shom *shom_invert(const Shom &s, const SDD &d)
 
 cdef extern from "dddwrap.h" namespace "std" :
     cdef cppclass ostringstream :
@@ -674,10 +675,12 @@ cdef class shom :
         return makesdd(shom_call(self.h[0], dom.s[0]))
     def __hash__ (shom self) :
         return int(self.s.hash())
-    cpdef fixpoint (shom self) :
+    cpdef shom fixpoint (shom self) :
         return makeshom(shom_fixpoint(self.h[0]))
-    cpdef star (shom self) :
+    cpdef shom star (shom self) :
         return (self | shom()).fixpoint()
+    cpdef shom invert (shom self, sdd potential) :
+        return makeshom(shom_invert(self.h[0], potential.s[0]))
     def __or__ (shom self, shom other) :
         return makeshom(shom_union(self.h[0], other.h[0]))
     def __mul__ (shom self, shom other) :

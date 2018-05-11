@@ -66,8 +66,9 @@ cdef extern from "ddd/SHom.h" :
 
 cdef class shom :
     cdef Shom *h
-    cpdef fixpoint (shom self)
-    cpdef star (shom self)
+    cpdef shom fixpoint (shom self)
+    cpdef shom star (shom self)
+    cpdef shom invert (shom self, sdd potential)
     cpdef str dumps (shom self)
 
 cdef shom makeshom (Shom *h)
