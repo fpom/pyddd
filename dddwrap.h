@@ -2,10 +2,14 @@
 #include <sstream>
 #include "ddd/DDD.h"
 
+#define val_t GDDD::val_t
+
 #define ddd_ONE DDD::one
 #define ddd_new_ONE() new DDD(DDD::one)
 #define ddd_new_EMPTY() new DDD(DDD::null)
 #define ddd_new_TOP() new DDD(DDD::top)
+#define ddd_new_range(var,val1,val2,d) new DDD(var,val1,val2,d)
+#define ddd_val_size sizeof(GDDD::val_t)
 
 #define ddd_STOP(d) (d == DDD::one) || (d == DDD::null)
 
@@ -49,6 +53,8 @@
 #define sdd_iterator_DDD_value(i) dynamic_cast<DDD*>(i->first)
 
 #define shom_new_Shom_null() new Shom(Shom::null)
+#define shom_new_Shom_var_ddd(var,val,s) new Shom(var,val,s)
+#define shom_new_Shom_var_sdd(var,val,s) new Shom(var,val,s)
 #define shom_neg(h) new Shom(!h)
 #define shom_eq(a,b) (a == b)
 #define shom_ne(a,b) (a != b)
@@ -64,3 +70,5 @@
 #define shom_invert(s,d) new Shom(s.invert(d))
 
 #define shom_print(h,s) s << h
+#define shom_set d3::set<GShom>::type
+#define shom_addset(s) new Shom(GShom::add(s))

@@ -20,6 +20,7 @@ cdef extern from "ddd/DDD.h" :
         long double set_size () const
         int variable() const
         size_t hash () const
+        void pstats (bint reinit)
 
 cdef class ddd (xdd) :
     cdef DDD *d
@@ -28,6 +29,7 @@ cdef class ddd (xdd) :
     cpdef dict dict_pick (ddd self)
     cpdef tuple vars (ddd self)
     cpdef bint stop (ddd self)
+    cpdef void print_stats (self, bint reinit=*)
 
 cdef ddd makeddd (DDD *d)
 
@@ -42,6 +44,7 @@ cdef extern from "ddd/SDD.h" :
         bint empty() const
         size_t set_hash() const
         int variable() const
+        void pstats (bint reinit)
 
 cdef class sdd (xdd) :
     cdef SDD *s
@@ -50,6 +53,7 @@ cdef class sdd (xdd) :
     cpdef dict dict_pick (sdd self)
     cpdef tuple vars (sdd self)
     cpdef bint stop (sdd self)
+    cpdef void print_stats (self, bint reinit=*)
 
 cdef sdd makesdd (SDD *s)
 

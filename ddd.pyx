@@ -1,7 +1,8 @@
 from libcpp.pair cimport pair
 from libcpp.vector cimport vector
+from libcpp.set cimport set as cset
 
-import collections, itertools
+import collections, itertools, functools, operator
 
 edge = collections.namedtuple("edge", ["varname", "varnum", "value", "child"])
 
@@ -16,26 +17,32 @@ cdef class xdd :
 ##
 
 cdef extern from "dddwrap.h" :
+    ctypedef short val_t
     cdef const DDD ddd_ONE
     cdef DDD *ddd_new_ONE()
     cdef DDD *ddd_new_EMPTY()
     cdef DDD *ddd_new_TOP()
+    cdef DDD *ddd_new_range(int var, val_t val1, val_t val2, const DDD&d)
     cdef bint ddd_STOP(DDD &d)
     cdef DDD *ddd_concat (DDD &a, DDD &b)
     cdef DDD *ddd_union (DDD &a, DDD &b)
     cdef DDD *ddd_intersect (DDD &a, DDD &b)
     cdef DDD *ddd_minus (DDD &a, DDD &b)
-    ctypedef pair[short,DDD] *ddd_iterator
+    ctypedef pair[val_t,DDD] *ddd_iterator
     cdef ddd_iterator ddd_iterator_begin (DDD *d)
     cdef void ddd_iterator_next (ddd_iterator i)
     cdef bint ddd_iterator_end (ddd_iterator i, DDD *d)
     cdef DDD *ddd_iterator_ddd (ddd_iterator i)
-    cdef short ddd_iterator_value (ddd_iterator i)
+    cdef val_t ddd_iterator_value (ddd_iterator i)
+    cdef long ddd_val_size
 
 cdef ddd makeddd (DDD *d) :
     cdef ddd obj = ddd.__new__(ddd)
     obj.d = d
     return obj
+
+cpdef long valsize () :
+    return ddd_val_size
 
 cdef class ddd (xdd) :
     def __init__ (self, **valuation) :
@@ -56,7 +63,7 @@ cdef class ddd (xdd) :
         `!=` for equality, and `<`, `<=`, `>`, and `>=` for inclusion.
         """
         cdef int pos
-        cdef short val
+        cdef val_t val
         cdef str var
         self.d = ddd_new_ONE()
         for var in sorted(valuation) :
@@ -67,6 +74,51 @@ cdef class ddd (xdd) :
         for pos, val in sorted(((VARS[var], val) for var, val in valuation.items()),
                                reverse=True) :
             self.d = new DDD(pos, val, self.d[0])
+    @classmethod
+    def from_range (cls, str var, val_t start, val_t stop, ddd d=None) :
+        cdef ddd suite
+        if start > stop :
+            raise ValueError("start should not be greater that stop")
+        if d is None :
+            suite = ddd.one()
+        else :
+            suite = d
+        if var not in VARS :
+            pos = VARS[var] = len(VARS)
+            SRAV[pos] = var
+            DDD.varName(VARS[var], var.encode())
+        return makeddd(ddd_new_range(VARS[var], start, stop, suite.d[0]))
+    @classmethod
+    def from_values (cls, str var, values) :
+        cdef list l
+        cdef set s
+        cdef dict d
+        cdef tuple t
+        cdef val_t v
+        cdef ddd res = ddd.empty()
+        if isinstance(values, list) :
+            l = <list>values
+            for v in l :
+                res |= ddd(**{var: v})
+        elif isinstance(values, set) :
+            s = <set>values
+            for v in s :
+                res |= ddd(**{var: v})
+        elif isinstance(values, dict) :
+            d = <dict>values
+            for v in d :
+                res |= ddd(**{var: v})
+        elif isinstance(values, tuple) :
+            t = <tuple>values
+            for v in t :
+                res |= ddd(**{var: v})
+        else :
+            res = functools.reduce(operator.or_,
+                                   (cls(**{var:v}) for v in values),
+                                   res)
+        return res
+    cpdef void print_stats (self, bint reinit=True) :
+        self.d.pstats(reinit)
     def __add__ (ddd self, ddd other) :
         """Concatenation: `a+b` replaces "one" terminals of `a` by `b`.
 
@@ -190,7 +242,7 @@ cdef class ddd (xdd) :
         >>> list(ddd(a=1, b=2, c=3))
         [(1, 2, 3)]
         """
-        cdef short val
+        cdef val_t val
         cdef tuple vec
         cdef ddd child
         cdef ddd_iterator it = ddd_iterator_begin(self.d)
@@ -363,6 +415,8 @@ cdef class sdd (xdd) :
                 self.s = sdd_new_SDDd(pos, (<ddd>val).d[0], self.s[0])
             else :
                 self.s = sdd_new_SDDs(pos, (<sdd>val).s[0], self.s[0])
+    cpdef void print_stats (self, bint reinit=True) :
+        self.s.pstats(reinit)
     def __add__ (sdd self, sdd other) :
         """Concatenation: `a+b` replaces "one" terminals of `a` by `b`.
 
@@ -630,6 +684,8 @@ cdef class sdd (xdd) :
 cdef extern from "dddwrap.h" :
     cdef Shom *shom_new_Shom (const SDD &s)
     cdef Shom *shom_new_Shom_null ()
+    cdef Shom *shom_new_Shom_var_ddd(int var, const DDD &val, const Shom &s)
+    cdef Shom *shom_new_Shom_var_sdd(int var, const SDD &val, const Shom &s)
     cdef Shom *shom_neg(const Shom &s)
     cdef bint shom_eq(const Shom &a, const Shom &b)
     cdef bint shom_ne(const Shom &a, const Shom &b)
@@ -643,6 +699,8 @@ cdef extern from "dddwrap.h" :
     cdef Shom *shom_minus_Shom_Shom(const Shom &a, const Shom &b)
     cdef void shom_print(const Shom &h, ostringstream &s)
     cdef Shom *shom_invert(const Shom &s, const SDD &d)
+    cdef Shom *shom_addset(const cset[Shom] &s)
+    ctypedef cset[Shom] shom_set
 
 cdef extern from "dddwrap.h" namespace "std" :
     cdef cppclass ostringstream :
@@ -659,6 +717,23 @@ cdef class shom :
             self.h = new Shom(s.s[0])
         else :
             self.h = new Shom()
+    @classmethod
+    def mkmap (cls, str var, xdd val, shom s=None) :
+        cdef shom suite
+        if var not in VARS :
+            pos = VARS[var] = len(VARS)
+            SRAV[pos] = var
+        if s is None :
+            suite = cls.empty()
+        else :
+            suite = s
+        if isinstance(val, ddd) :
+            return makeshom(shom_new_Shom_var_ddd(VARS[var], (<ddd>val).d[0], suite.h[0]))
+        elif isinstance(val, sdd) :
+            return makeshom(shom_new_Shom_var_sdd(VARS[var], (<sdd>val).s[0], suite.h[0]))
+        else :
+            raise TypeError("expected ddd or sdd for val, but got %r"
+                            % val.__class__.__name__)
     @classmethod
     def ident (cls) :
         return shom()
@@ -680,7 +755,7 @@ cdef class shom :
     cpdef shom star (shom self) :
         return (self | shom()).fixpoint()
     cpdef shom invert (shom self, sdd potential) :
-        return makeshom(shom_invert(self.h[0], potential.s[0]))
+        return makeshom(shom_invert(self.h[0], potential.s[0])) & potential
     def __or__ (shom self, shom other) :
         return makeshom(shom_union(self.h[0], other.h[0]))
     def __mul__ (shom self, shom other) :
@@ -707,3 +782,10 @@ cdef class shom :
         cdef ostringstream oss
         shom_print(self.h[0], oss)
         return oss.str().decode()
+    @classmethod
+    def union (cls, *shoms) :
+        cdef shom h
+        cdef shom_set s
+        for h in shoms :
+            s.insert(h.h[0])
+        return makeshom(shom_addset(s))
