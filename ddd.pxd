@@ -1,11 +1,14 @@
 from libcpp.string cimport string
 
 cdef class xdd :
-    pass
+    cdef void _dot (self, str ext, list files)
 
 ##
 ## DDD
 ##
+
+cdef extern from "dddwrap.h" :
+    ctypedef short val_t
 
 cdef extern from "ddd/DDD.h" :
     cdef cppclass DDD :
@@ -14,7 +17,8 @@ cdef extern from "ddd/DDD.h" :
         @staticmethod
         const string getvarName (int var)
         DDD (const DDD &)
-        DDD (int var, short val, const DDD &d)
+        DDD (int var, val_t val, const DDD &d)
+        DDD (int var, val_t val)
         bint empty () const
         bint set_equal (const DDD &b) const
         long double set_size () const
@@ -30,6 +34,9 @@ cdef class ddd (xdd) :
     cpdef tuple vars (ddd self)
     cpdef bint stop (ddd self)
     cpdef void print_stats (self, bint reinit=*)
+    cpdef void dot (ddd self, str path)
+    cpdef ddd drop (ddd self, variables)
+    cdef ddd _drop (ddd self, set variables)
 
 cdef ddd makeddd (DDD *d)
 
@@ -54,6 +61,9 @@ cdef class sdd (xdd) :
     cpdef tuple vars (sdd self)
     cpdef bint stop (sdd self)
     cpdef void print_stats (self, bint reinit=*)
+    cpdef void dot (sdd self, str path)
+    cpdef sdd drop (sdd self, variables)
+    cdef sdd _drop (sdd self, set variables)
 
 cdef sdd makesdd (SDD *s)
 

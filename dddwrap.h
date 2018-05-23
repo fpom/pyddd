@@ -1,6 +1,7 @@
 #include <string>
 #include <sstream>
 #include "ddd/DDD.h"
+#include "ddd/util/dotExporter.h"
 
 #define val_t GDDD::val_t
 

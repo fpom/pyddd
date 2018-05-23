@@ -1,8 +1,9 @@
 from libcpp.pair cimport pair
 from libcpp.vector cimport vector
 from libcpp.set cimport set as cset
+from libcpp cimport bool
 
-import collections, itertools, functools, operator
+import collections, itertools, functools, operator, os.path, os, subprocess
 
 edge = collections.namedtuple("edge", ["varname", "varnum", "value", "child"])
 
@@ -10,7 +11,24 @@ cdef dict VARS = {}
 cdef dict SRAV = {}
 
 cdef class xdd :
-    pass
+    cdef void _dot (self, str ext, list files) :
+        cdef str base
+        if ext in ["", "dot"] :
+            pass
+        elif ext in ["pdf", "eps", "png"] :
+            for base in files :
+                if os.path.exists(base + ".dot") :
+                    subprocess.check_call(["dot", "-T%s" % ext,
+                                           "-o", ".".join([base, ext]),
+                                           base + ".dot"])
+                    os.unlink(base + ".dot")
+        else :
+            for base in files :
+                if os.path.exists(base + ".dot") :
+                    subprocess.check_call(["dot2tex", "--figonly",
+                                           "-o", base + ".tex",
+                                           base + ".dot"])
+                    os.unlink(base + ".dot")
 
 ##
 ## DDD
@@ -119,6 +137,26 @@ cdef class ddd (xdd) :
         return res
     cpdef void print_stats (self, bint reinit=True) :
         self.d.pstats(reinit)
+    cpdef void dot (ddd self, str path) :
+        cdef sdd s = sdd(x=self)
+        cdef str line, node
+        cdef object src, tgt
+        dirname = os.path.dirname(path)
+        basename, ext = os.path.splitext(os.path.basename(path))
+        ext = ext.lower() or ".dot"
+        sddbase = os.path.join(dirname, basename)
+        dddbase = os.path.join(dirname, "d3" + basename)
+        s.dot(sddbase)
+        with open(dddbase + ".dot") as src :
+            with open(sddbase + ".dot", "w") as tgt :
+                node = "Mod_0"
+                for line in src :
+                    if "[shape=invhouse]" in line :
+                        node = line.split()[0]
+                    elif node not in line :
+                        tgt.write(line)
+        os.unlink(dddbase + ".dot")
+        self._dot(ext.strip("."), [sddbase])
     def __add__ (ddd self, ddd other) :
         """Concatenation: `a+b` replaces "one" terminals of `a` by `b`.
 
@@ -336,6 +374,29 @@ cdef class ddd (xdd) :
         True
         """
         return ddd_STOP(self.d[0])
+    cpdef ddd drop (ddd self, variables) :
+        return self._drop(set(variables))
+    cdef ddd _drop (ddd self, set variables) :
+        cdef str var
+        cdef int num
+        cdef bint cut
+        cdef ddd ret, tail
+        cdef ddd_iterator it
+        if ddd_STOP(self.d[0]) :
+            return self
+        var = self.varname()
+        num = self.d.variable()
+        cut = var in variables
+        ret = self.empty()
+        it = ddd_iterator_begin(self.d)
+        while not ddd_iterator_end(it, self.d) :
+            if cut :
+                ret |= makeddd(ddd_iterator_ddd(it))._drop(variables)
+            else :
+                tail = makeddd(ddd_iterator_ddd(it))._drop(variables)
+                ret |= makeddd(new DDD(num, ddd_iterator_value(it), tail.d[0]))
+            ddd_iterator_next(it)
+        return ret
 
 ##
 ## SDD
@@ -367,6 +428,7 @@ cdef extern from "dddwrap.h" :
     cdef SDD *sdd_iterator_SDD_value (sdd_iterator i)
     cdef SDD *sdd_iterator_GSDD_value (sdd_iterator i)
     cdef DDD *sdd_iterator_DDD_value (sdd_iterator i)
+    cdef int exportDot(const SDD &s, const string &path)
 
 cdef sdd makesdd (SDD *s) :
     cdef sdd obj = sdd.__new__(sdd)
@@ -417,6 +479,16 @@ cdef class sdd (xdd) :
                 self.s = sdd_new_SDDs(pos, (<sdd>val).s[0], self.s[0])
     cpdef void print_stats (self, bint reinit=True) :
         self.s.pstats(reinit)
+    cpdef void dot (sdd self, str path) :
+        dirname = os.path.dirname(path)
+        basename, ext = os.path.splitext(os.path.basename(path))
+        ext = ext.strip(".").lower()
+        if ext not in ["", "dot", "pdf", "eps", "png", "tex"] :
+            raise ValueError("unsupported output format %r" % ext)
+        sddbase = os.path.join(dirname, basename)
+        dddbase = os.path.join(dirname, "d3" + basename)
+        exportDot(self.s[0], sddbase.encode("utf-8"))
+        self._dot(ext, [sddbase, dddbase])
     def __add__ (sdd self, sdd other) :
         """Concatenation: `a+b` replaces "one" terminals of `a` by `b`.
 
@@ -676,6 +748,36 @@ cdef class sdd (xdd) :
         True
         """
         return sdd_STOP(self.s[0])
+    cpdef sdd drop (sdd self, variables) :
+        return self._drop(set(variables))
+    cdef sdd _drop (sdd self, set variables) :
+        cdef str var = self.varname()
+        cdef xdd val
+        cdef ddd d
+        cdef sdd s, t
+        cdef bint cut
+        cdef sdd ret
+        cdef sdd_iterator it
+        if sdd_STOP(self.s[0]) :
+            return self
+        cut = var in variables
+        ret = self.empty()
+        it = sdd_iterator_begin(self.s)
+        while not sdd_iterator_end(it, self.s) :
+            if cut :
+                ret |= makesdd(sdd_iterator_sdd(it))._drop(variables)
+            else :
+                val = sdd_iterator_value(it)
+                if isinstance(val, ddd) :
+                    d = (<ddd>val).drop(variables)
+                    t = makesdd(sdd_iterator_sdd(it))._drop(variables)
+                    ret |= makesdd(sdd_new_SDDd(self.s.variable(), d.d[0], t.s[0]))
+                else :
+                    s = (<sdd>val)._drop(variables)
+                    t = makesdd(sdd_iterator_sdd(it))._drop(variables)
+                    ret |= makesdd(sdd_new_SDDs(self.s.variable(), s.s[0], t.s[0]))
+            sdd_iterator_next(it)
+        return ret
 
 ##
 ## Shom
