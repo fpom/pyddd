@@ -854,8 +854,10 @@ cdef class shom :
         return int(self.s.hash())
     cpdef shom fixpoint (shom self) :
         return makeshom(shom_fixpoint(self.h[0]))
-    cpdef shom star (shom self) :
+    cpdef shom lfp (shom self) :
         return (self | shom()).fixpoint()
+    cpdef shom gfp (shom self) :
+        return (self & shom()).fixpoint()
     cpdef shom invert (shom self, sdd potential) :
         return makeshom(shom_invert(self.h[0], potential.s[0])) & potential
     def __or__ (shom self, shom other) :
