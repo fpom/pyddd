@@ -37,24 +37,24 @@ cdef class xdd :
 cdef extern from "dddwrap.h" :
     ctypedef short val_t
     cdef const DDD ddd_ONE
-    cdef DDD *ddd_new_ONE()
-    cdef DDD *ddd_new_EMPTY()
-    cdef DDD *ddd_new_TOP()
-    cdef DDD *ddd_new_range(int var, val_t val1, val_t val2, const DDD&d)
+    cdef DDD ddd_new_ONE()
+    cdef DDD ddd_new_EMPTY()
+    cdef DDD ddd_new_TOP()
+    cdef DDD ddd_new_range(int var, val_t val1, val_t val2, const DDD&d)
     cdef bint ddd_STOP(DDD &d)
-    cdef DDD *ddd_concat (DDD &a, DDD &b)
-    cdef DDD *ddd_union (DDD &a, DDD &b)
-    cdef DDD *ddd_intersect (DDD &a, DDD &b)
-    cdef DDD *ddd_minus (DDD &a, DDD &b)
+    cdef DDD ddd_concat (DDD &a, DDD &b)
+    cdef DDD ddd_union (DDD &a, DDD &b)
+    cdef DDD ddd_intersect (DDD &a, DDD &b)
+    cdef DDD ddd_minus (DDD &a, DDD &b)
     ctypedef pair[val_t,DDD] *ddd_iterator
-    cdef ddd_iterator ddd_iterator_begin (DDD *d)
+    cdef ddd_iterator ddd_iterator_begin (DDD d)
     cdef void ddd_iterator_next (ddd_iterator i)
-    cdef bint ddd_iterator_end (ddd_iterator i, DDD *d)
-    cdef DDD *ddd_iterator_ddd (ddd_iterator i)
+    cdef bint ddd_iterator_end (ddd_iterator i, DDD d)
+    cdef DDD ddd_iterator_ddd (ddd_iterator i)
     cdef val_t ddd_iterator_value (ddd_iterator i)
     cdef long ddd_val_size
 
-cdef ddd makeddd (DDD *d) :
+cdef ddd makeddd (DDD d) :
     cdef ddd obj = ddd.__new__(ddd)
     obj.d = d
     return obj
@@ -91,7 +91,7 @@ cdef class ddd (xdd) :
                 DDD.varName(VARS[var], var.encode())
         for pos, val in sorted(((VARS[var], val) for var, val in valuation.items()),
                                reverse=True) :
-            self.d = new DDD(pos, val, self.d[0])
+            self.d = DDD(pos, val, self.d)
     @classmethod
     def from_range (cls, str var, val_t start, val_t stop, ddd d=None) :
         cdef ddd suite
@@ -105,7 +105,7 @@ cdef class ddd (xdd) :
             pos = VARS[var] = len(VARS)
             SRAV[pos] = var
             DDD.varName(VARS[var], var.encode())
-        return makeddd(ddd_new_range(VARS[var], start, stop, suite.d[0]))
+        return makeddd(ddd_new_range(VARS[var], start, stop, suite.d))
     @classmethod
     def from_values (cls, str var, values) :
         cdef list l
@@ -169,7 +169,7 @@ cdef class ddd (xdd) :
         >>> ddd(a=1) + ddd(b=2) != ddd(b=2) + ddd(a=1)
         True
         """
-        return makeddd(ddd_concat(self.d[0], other.d[0]))
+        return makeddd(ddd_concat(self.d, other.d))
     def __or__ (ddd self, ddd other) :
         """Union: `a|b` contains all the elements contained in `a` or `b`.
 
@@ -177,7 +177,7 @@ cdef class ddd (xdd) :
         >>> list(sorted(d))
         [(1, 2), (3, 4)]
         """
-        return makeddd(ddd_union(self.d[0], other.d[0]))
+        return makeddd(ddd_union(self.d, other.d))
     def __and__ (ddd self, ddd other) :
         """Intersection: `a&b` contains all the elements contained in both `a` and `b`.
 
@@ -188,7 +188,7 @@ cdef class ddd (xdd) :
         >>> list(d)
         []
         """
-        return makeddd(ddd_intersect(self.d[0], other.d[0]))
+        return makeddd(ddd_intersect(self.d, other.d))
     def __sub__ (ddd self, ddd other) :
         """Difference: `a-b` contains the elements from `a` that are not in `b`.
 
@@ -202,11 +202,11 @@ cdef class ddd (xdd) :
         >>> list(d)
         []
         """
-        return makeddd(ddd_minus(self.d[0], other.d[0]))
+        return makeddd(ddd_minus(self.d, other.d))
     def __eq__ (ddd self, ddd other) :
-        return self.d.set_equal(other.d[0])
+        return self.d.set_equal(other.d)
     def __ne__ (ddd self, ddd other) :
-        return not self.d.set_equal(other.d[0])
+        return not self.d.set_equal(other.d)
     def __le__ (ddd self, ddd other) :
         return (self | other) == other
     def __lt__ (ddd self, ddd other) :
@@ -258,13 +258,13 @@ cdef class ddd (xdd) :
         [(1, ...)]
         """
         cdef ddd_iterator it
-        if ddd_STOP(self.d[0]) :
+        if ddd_STOP(self.d) :
             return self
         else :
             it = ddd_iterator_begin(self.d)
             child = makeddd(ddd_iterator_ddd(it))
-            return makeddd(new DDD(self.d.variable(), ddd_iterator_value(it),
-                                   ddd_ONE)) + child.pick()
+            return makeddd(DDD(self.d.variable(), ddd_iterator_value(it),
+                               ddd_ONE)) + child.pick()
     cpdef dict dict_pick (ddd self) :
         """Pick one element in the `ddd` and return it as a `dict`.
 
@@ -287,7 +287,7 @@ cdef class ddd (xdd) :
         while not ddd_iterator_end(it, self.d) :
             val = ddd_iterator_value(it)
             child = makeddd(ddd_iterator_ddd(it))
-            if ddd_STOP(child.d[0]) :
+            if ddd_STOP(child.d) :
                 yield (val,)
             else :
                 for vec in child :
@@ -301,7 +301,7 @@ cdef class ddd (xdd) :
         """
         cdef ddd child
         cdef ddd_iterator it
-        if ddd_STOP(self.d[0]) :
+        if ddd_STOP(self.d) :
             return ()
         else :
             it = ddd_iterator_begin(self.d)
@@ -333,7 +333,7 @@ cdef class ddd (xdd) :
         cdef str var
         cdef ddd child
         cdef ddd_iterator it = ddd_iterator_begin(self.d)
-        if not ddd_STOP(self.d[0]) :
+        if not ddd_STOP(self.d) :
             while not ddd_iterator_end(it, self.d) :
                 val = ddd_iterator_value(it)
                 child = makeddd(ddd_iterator_ddd(it))
@@ -373,7 +373,7 @@ cdef class ddd (xdd) :
         >>> ddd.empty().stop()
         True
         """
-        return ddd_STOP(self.d[0])
+        return ddd_STOP(self.d)
     cpdef ddd drop (ddd self, variables) :
         return self._drop(set(variables))
     cdef ddd _drop (ddd self, set variables) :
@@ -382,7 +382,7 @@ cdef class ddd (xdd) :
         cdef bint cut
         cdef ddd ret, tail
         cdef ddd_iterator it
-        if ddd_STOP(self.d[0]) :
+        if ddd_STOP(self.d) :
             return self
         var = self.varname()
         num = self.d.variable()
@@ -394,7 +394,7 @@ cdef class ddd (xdd) :
                 ret |= makeddd(ddd_iterator_ddd(it))._drop(variables)
             else :
                 tail = makeddd(ddd_iterator_ddd(it))._drop(variables)
-                ret |= makeddd(new DDD(num, ddd_iterator_value(it), tail.d[0]))
+                ret |= makeddd(DDD(num, ddd_iterator_value(it), tail.d))
             ddd_iterator_next(it)
         return ret
 
@@ -403,25 +403,25 @@ cdef class ddd (xdd) :
 ##
 
 cdef extern from "dddwrap.h" :
-    cdef SDD *sdd_new_SDDs (int var, const SDD &val, const SDD &s)
-    cdef SDD *sdd_new_SDDd (int var, const DDD &val, const SDD &s)
+    cdef SDD sdd_new_SDDs (int var, const SDD &val, const SDD &s)
+    cdef SDD sdd_new_SDDd (int var, const DDD &val, const SDD &s)
     cdef const SDD sdd_ONE
-    cdef SDD *sdd_new_ONE()
-    cdef SDD *sdd_new_EMPTY()
-    cdef SDD *sdd_new_TOP()
+    cdef SDD sdd_new_ONE()
+    cdef SDD sdd_new_EMPTY()
+    cdef SDD sdd_new_TOP()
     cdef bint sdd_STOP(SDD &s)
-    cdef SDD *sdd_concat(SDD &a, SDD &b)
-    cdef SDD *sdd_union(SDD &a, SDD &b)
-    cdef SDD *sdd_intersect(SDD &a, SDD &b)
-    cdef SDD *sdd_minus(SDD &a, SDD &b)
+    cdef SDD sdd_concat(SDD &a, SDD &b)
+    cdef SDD sdd_union(SDD &a, SDD &b)
+    cdef SDD sdd_intersect(SDD &a, SDD &b)
+    cdef SDD sdd_minus(SDD &a, SDD &b)
     cdef bint sdd_eq(SDD &a, SDD &b)
     cdef bint sdd_ne(SDD &a, SDD &b)
     ctypedef DDD* DDD_star
     ctypedef vector[pair[DDD_star,SDD]] sdd_iterator
-    cdef sdd_iterator sdd_iterator_begin (SDD *s)
+    cdef sdd_iterator sdd_iterator_begin (SDD s)
     cdef void sdd_iterator_next (sdd_iterator i)
-    cdef bint sdd_iterator_end (sdd_iterator i, SDD *s)
-    cdef SDD *sdd_iterator_sdd (sdd_iterator i)
+    cdef bint sdd_iterator_end (sdd_iterator i, SDD s)
+    cdef SDD sdd_iterator_sdd (sdd_iterator i)
     cdef bint sdd_iterator_value_is_DDD (sdd_iterator i)
     cdef bint sdd_iterator_value_is_SDD (sdd_iterator i)
     cdef bint sdd_iterator_value_is_GSDD (sdd_iterator i)
@@ -430,18 +430,23 @@ cdef extern from "dddwrap.h" :
     cdef DDD *sdd_iterator_DDD_value (sdd_iterator i)
     cdef int exportDot(const SDD &s, const string &path)
 
-cdef sdd makesdd (SDD *s) :
+cdef sdd makesdd (SDD s) :
     cdef sdd obj = sdd.__new__(sdd)
     obj.s = s
     return obj
 
 cdef xdd sdd_iterator_value (sdd_iterator i) :
+    cdef DDD* d
+    cdef SDD* s
     if sdd_iterator_value_is_DDD(i) :
-        return makeddd(sdd_iterator_DDD_value(i))
+        d = sdd_iterator_DDD_value(i)
+        return makeddd(d[0])
     elif sdd_iterator_value_is_SDD(i) :
-        return makesdd(sdd_iterator_SDD_value(i))
+        s = sdd_iterator_SDD_value(i)
+        return makesdd(s[0])
     elif sdd_iterator_value_is_GSDD(i) :
-        return makesdd(sdd_iterator_GSDD_value(i))
+        s = sdd_iterator_GSDD_value(i)
+        return makesdd(s[0])
     else :
         raise NotImplementedError("cannot cast arc label")
 
@@ -474,9 +479,9 @@ cdef class sdd (xdd) :
         for pos, val in sorted(((VARS[var], val) for var, val in valuation.items()),
                                reverse=True) :
             if isinstance(val, ddd) :
-                self.s = sdd_new_SDDd(pos, (<ddd>val).d[0], self.s[0])
+                self.s = sdd_new_SDDd(pos, (<ddd>val).d, self.s)
             else :
-                self.s = sdd_new_SDDs(pos, (<sdd>val).s[0], self.s[0])
+                self.s = sdd_new_SDDs(pos, (<sdd>val).s, self.s)
     cpdef void print_stats (self, bint reinit=True) :
         self.s.pstats(reinit)
     cpdef void dot (sdd self, str path) :
@@ -487,7 +492,7 @@ cdef class sdd (xdd) :
             raise ValueError("unsupported output format %r" % ext)
         sddbase = os.path.join(dirname, basename)
         dddbase = os.path.join(dirname, "d3" + basename)
-        exportDot(self.s[0], sddbase.encode("utf-8"))
+        exportDot(self.s, sddbase.encode("utf-8"))
         self._dot(ext, [sddbase, dddbase])
     def __add__ (sdd self, sdd other) :
         """Concatenation: `a+b` replaces "one" terminals of `a` by `b`.
@@ -501,7 +506,7 @@ cdef class sdd (xdd) :
         >>> sdd(a=ddd(x=1)) + sdd(b=ddd(y=2)) != sdd(b=ddd(y=2)) + sdd(a=ddd(x=1))
         True
         """
-        return makesdd(sdd_concat(self.s[0], other.s[0]))
+        return makesdd(sdd_concat(self.s, other.s))
     def __or__ (sdd self, sdd other) :
         """Union: `a|b` contains all the elements contained in `a` or `b`.
 
@@ -510,7 +515,7 @@ cdef class sdd (xdd) :
         [((1,), (2,)),
          ((3,), (4,))]
         """
-        return makesdd(sdd_union(self.s[0], other.s[0]))
+        return makesdd(sdd_union(self.s, other.s))
     def __and__ (sdd self, sdd other) :
         """Intersection: `a&b` contains all the elements contained in both `a` and `b`.
 
@@ -519,7 +524,7 @@ cdef class sdd (xdd) :
         >>> (d | e) & e == e
         True
         """
-        return makesdd(sdd_intersect(self.s[0], other.s[0]))
+        return makesdd(sdd_intersect(self.s, other.s))
     def __sub__ (sdd self, sdd other) :
         """Difference: `a-b` contains the elements from `a` that are not in `b`.
 
@@ -528,11 +533,11 @@ cdef class sdd (xdd) :
         >>> (d | e) - e == d
         True
         """
-        return makesdd(sdd_minus(self.s[0], other.s[0]))
+        return makesdd(sdd_minus(self.s, other.s))
     def __eq__ (sdd self, sdd other) :
-        return sdd_eq(self.s[0], other.s[0])
+        return sdd_eq(self.s, other.s)
     def __ne__ (sdd self, sdd other) :
-        return sdd_ne(self.s[0], other.s[0])
+        return sdd_ne(self.s, other.s)
     def __le__ (sdd self, sdd other) :
         return (self | other) == other
     def __lt__ (sdd self, sdd other) :
@@ -595,7 +600,7 @@ cdef class sdd (xdd) :
         cdef xdd val
         cdef ddd d
         cdef sdd s
-        if sdd_STOP(self.s[0]) :
+        if sdd_STOP(self.s) :
             return self
         else :
             it = sdd_iterator_begin(self.s)
@@ -603,11 +608,11 @@ cdef class sdd (xdd) :
             val = sdd_iterator_value(it)
             if isinstance(val, ddd) :
                 d = (<ddd>val).pick()
-                return makesdd(sdd_new_SDDd(self.s.variable(), d.d[0],
+                return makesdd(sdd_new_SDDd(self.s.variable(), d.d,
                                             sdd_ONE)) + child.pick()
             else :
                 s = (<sdd>val).pick()
-                return makesdd(sdd_new_SDDs(self.s.variable(), s.s[0],
+                return makesdd(sdd_new_SDDs(self.s.variable(), s.s,
                                             sdd_ONE)) + child.pick()
     cpdef dict dict_pick (sdd self) :
         """Pick one element in the `sdd` and return it as a `dict`.
@@ -633,7 +638,7 @@ cdef class sdd (xdd) :
         while not sdd_iterator_end(it, self.s) :
             child = makesdd(sdd_iterator_sdd(it))
             val = sdd_iterator_value(it)
-            if sdd_STOP(child.s[0]) :
+            if sdd_STOP(child.s) :
                 yield (val,)
             else :
                 for vec in child :
@@ -647,7 +652,7 @@ cdef class sdd (xdd) :
         """
         cdef xdd child
         cdef sdd_iterator it
-        if sdd_STOP(self.s[0]) :
+        if sdd_STOP(self.s) :
             return ()
         else :
             it = sdd_iterator_begin(self.s)
@@ -707,7 +712,7 @@ cdef class sdd (xdd) :
         cdef sdd child
         cdef xdd val
         cdef sdd_iterator it = sdd_iterator_begin(self.s)
-        if not sdd_STOP(self.s[0]) :
+        if not sdd_STOP(self.s) :
             while not sdd_iterator_end(it, self.s) :
                 val = sdd_iterator_value(it)
                 child = makesdd(sdd_iterator_sdd(it))
@@ -747,7 +752,7 @@ cdef class sdd (xdd) :
         >>> sdd.empty().stop()
         True
         """
-        return sdd_STOP(self.s[0])
+        return sdd_STOP(self.s)
     cpdef sdd drop (sdd self, variables) :
         return self._drop(set(variables))
     cdef sdd _drop (sdd self, set variables) :
@@ -758,7 +763,7 @@ cdef class sdd (xdd) :
         cdef bint cut
         cdef sdd ret
         cdef sdd_iterator it
-        if sdd_STOP(self.s[0]) :
+        if sdd_STOP(self.s) :
             return self
         cut = var in variables
         ret = self.empty()
@@ -771,11 +776,11 @@ cdef class sdd (xdd) :
                 if isinstance(val, ddd) :
                     d = (<ddd>val).drop(variables)
                     t = makesdd(sdd_iterator_sdd(it))._drop(variables)
-                    ret |= makesdd(sdd_new_SDDd(self.s.variable(), d.d[0], t.s[0]))
+                    ret |= makesdd(sdd_new_SDDd(self.s.variable(), d.d, t.s))
                 else :
                     s = (<sdd>val)._drop(variables)
                     t = makesdd(sdd_iterator_sdd(it))._drop(variables)
-                    ret |= makesdd(sdd_new_SDDs(self.s.variable(), s.s[0], t.s[0]))
+                    ret |= makesdd(sdd_new_SDDs(self.s.variable(), s.s, t.s))
             sdd_iterator_next(it)
         return ret
 
@@ -784,31 +789,31 @@ cdef class sdd (xdd) :
 ##
 
 cdef extern from "dddwrap.h" :
-    cdef Shom *shom_new_Shom (const SDD &s)
-    cdef Shom *shom_new_Shom_null ()
-    cdef Shom *shom_new_Shom_var_ddd(int var, const DDD &val, const Shom &s)
-    cdef Shom *shom_new_Shom_var_sdd(int var, const SDD &val, const Shom &s)
-    cdef Shom *shom_neg(const Shom &s)
+    cdef Shom shom_new_Shom (const SDD &s)
+    cdef Shom shom_new_Shom_null ()
+    cdef Shom shom_new_Shom_var_ddd(int var, const DDD &val, const Shom &s)
+    cdef Shom shom_new_Shom_var_sdd(int var, const SDD &val, const Shom &s)
+    cdef Shom shom_neg(const Shom &s)
     cdef bint shom_eq(const Shom &a, const Shom &b)
     cdef bint shom_ne(const Shom &a, const Shom &b)
-    cdef SDD *shom_call(const Shom &h, const SDD &s)
-    cdef Shom *shom_fixpoint(const Shom &h)
-    cdef Shom *shom_union(const Shom &a, const Shom &b)
-    cdef Shom *shom_circ(const Shom &a, const Shom &b)
-    cdef Shom *shom_intersect_Shom_SDD(const Shom &a, const SDD &b)
-    cdef Shom *shom_intersect_Shom_Shom(const Shom &a, const Shom &b)
-    cdef Shom *shom_minus_Shom_SDD(const Shom &a, const SDD &b)
-    cdef Shom *shom_minus_Shom_Shom(const Shom &a, const Shom &b)
+    cdef SDD shom_call(const Shom &h, const SDD &s)
+    cdef Shom shom_union(const Shom &a, const Shom &b)
+    cdef Shom shom_circ(const Shom &a, const Shom &b)
+    cdef Shom shom_intersect_Shom_SDD(const Shom &a, const SDD &b)
+    cdef Shom shom_intersect_Shom_Shom(const Shom &a, const Shom &b)
+    cdef Shom shom_minus_Shom_SDD(const Shom &a, const SDD &b)
+    cdef Shom shom_minus_Shom_Shom(const Shom &a, const Shom &b)
     cdef void shom_print(const Shom &h, ostringstream &s)
-    cdef Shom *shom_invert(const Shom &s, const SDD &d)
-    cdef Shom *shom_addset(const cset[Shom] &s)
+    cdef Shom shom_invert(const Shom &s, const SDD &d)
+    cdef Shom shom_addset(const cset[Shom] &s)
     ctypedef cset[Shom] shom_set
+    cdef Shom fixpoint(const Shom &s)
 
 cdef extern from "dddwrap.h" namespace "std" :
     cdef cppclass ostringstream :
         string str()
 
-cdef shom makeshom (Shom *h) :
+cdef shom makeshom (Shom h) :
     cdef shom obj = shom.__new__(shom)
     obj.h = h
     return obj
@@ -816,9 +821,9 @@ cdef shom makeshom (Shom *h) :
 cdef class shom :
     def __init__ (shom self, sdd s=None) :
         if s is not None :
-            self.h = new Shom(s.s[0])
+            self.h = Shom(s.s)
         else :
-            self.h = new Shom()
+            self.h = Shom()
     @classmethod
     def mkmap (cls, str var, xdd val, shom s=None) :
         cdef shom suite
@@ -830,9 +835,9 @@ cdef class shom :
         else :
             suite = s
         if isinstance(val, ddd) :
-            return makeshom(shom_new_Shom_var_ddd(VARS[var], (<ddd>val).d[0], suite.h[0]))
+            return makeshom(shom_new_Shom_var_ddd(VARS[var], (<ddd>val).d, suite.h))
         elif isinstance(val, sdd) :
-            return makeshom(shom_new_Shom_var_sdd(VARS[var], (<sdd>val).s[0], suite.h[0]))
+            return makeshom(shom_new_Shom_var_sdd(VARS[var], (<sdd>val).s, suite.h))
         else :
             raise TypeError("expected ddd or sdd for val, but got %r"
                             % val.__class__.__name__)
@@ -843,32 +848,32 @@ cdef class shom :
     def empty (cls) :
         return makeshom(shom_new_Shom_null())
     def __neg__ (shom self) :
-        return makeshom(shom_neg(self.h[0]))
+        return makeshom(shom_neg(self.h))
     def __eq__ (shom self, shom other) :
-        return shom_eq(self.h[0], other.h[0])
+        return shom_eq(self.h, other.h)
     def __ne__ (shom self, shom other) :
-        return shom_ne(self.h[0], other.h[0])
+        return shom_ne(self.h, other.h)
     def __call__ (shom self, sdd dom) :
-        return makesdd(shom_call(self.h[0], dom.s[0]))
+        return makesdd(shom_call(self.h, dom.s))
     def __hash__ (shom self) :
         return int(self.s.hash())
     cpdef shom fixpoint (shom self) :
-        return makeshom(shom_fixpoint(self.h[0]))
+        return makeshom(fixpoint(self.h))
     cpdef shom lfp (shom self) :
         return (self | shom()).fixpoint()
     cpdef shom gfp (shom self) :
         return (self & shom()).fixpoint()
     cpdef shom invert (shom self, sdd potential) :
-        return makeshom(shom_invert(self.h[0], potential.s[0])) & potential
+        return makeshom(shom_invert(self.h, potential.s)) & potential
     def __or__ (shom self, shom other) :
-        return makeshom(shom_union(self.h[0], other.h[0]))
+        return makeshom(shom_union(self.h, other.h))
     def __mul__ (shom self, shom other) :
-        return makeshom(shom_circ(self.h[0], other.h[0]))
+        return makeshom(shom_circ(self.h, other.h))
     def __and__ (shom self, other) :
         if isinstance(other, sdd) :
-            return makeshom(shom_intersect_Shom_SDD(self.h[0], (<sdd>other).s[0]))
+            return makeshom(shom_intersect_Shom_SDD(self.h, (<sdd>other).s))
         elif isinstance(other, shom) :
-            return makeshom(shom_intersect_Shom_Shom(self.h[0], (<shom>other).h[0]))
+            return makeshom(shom_intersect_Shom_Shom(self.h, (<shom>other).h))
         else :
             raise TypeError("expected 'shom' of 'sdd', got %r"
                             % other.__class__.__name__)
@@ -876,20 +881,20 @@ cdef class shom :
         return self & other
     def __sub__ (shom self, other) :
         if isinstance(other, sdd) :
-            return makeshom(shom_minus_Shom_SDD(self.h[0], (<sdd>other).s[0]))
+            return makeshom(shom_minus_Shom_SDD(self.h, (<sdd>other).s))
         elif isinstance(other, shom) :
-            return makeshom(shom_minus_Shom_Shom(self.h[0], (<shom>other).h[0]))
+            return makeshom(shom_minus_Shom_Shom(self.h, (<shom>other).h))
         else :
             raise TypeError("expected 'shom' of 'sdd', got %r"
                             % other.__class__.__name__)
     cpdef str dumps (shom self) :
         cdef ostringstream oss
-        shom_print(self.h[0], oss)
+        shom_print(self.h, oss)
         return oss.str().decode()
     @classmethod
     def union (cls, *shoms) :
         cdef shom h
         cdef shom_set s
         for h in shoms :
-            s.insert(h.h[0])
+            s.insert(h.h)
         return makeshom(shom_addset(s))

@@ -16,6 +16,7 @@ cdef extern from "ddd/DDD.h" :
         void varName (int var, const string &name)
         @staticmethod
         const string getvarName (int var)
+        DDD ()
         DDD (const DDD &)
         DDD (int var, val_t val, const DDD &d)
         DDD (int var, val_t val)
@@ -27,7 +28,7 @@ cdef extern from "ddd/DDD.h" :
         void pstats (bint reinit)
 
 cdef class ddd (xdd) :
-    cdef DDD *d
+    cdef DDD d
     cpdef str varname (ddd self)
     cpdef ddd pick (ddd self)
     cpdef dict dict_pick (ddd self)
@@ -38,7 +39,7 @@ cdef class ddd (xdd) :
     cpdef ddd drop (ddd self, variables)
     cdef ddd _drop (ddd self, set variables)
 
-cdef ddd makeddd (DDD *d)
+cdef ddd makeddd (DDD d)
 
 ##
 ## SDD
@@ -46,6 +47,7 @@ cdef ddd makeddd (DDD *d)
 
 cdef extern from "ddd/SDD.h" :
     cdef cppclass SDD :
+        SDD ()
         SDD (const SDD &)
         long double nbStates() const
         bint empty() const
@@ -54,7 +56,7 @@ cdef extern from "ddd/SDD.h" :
         void pstats (bint reinit)
 
 cdef class sdd (xdd) :
-    cdef SDD *s
+    cdef SDD s
     cpdef str varname (sdd self)
     cpdef sdd pick (sdd self)
     cpdef dict dict_pick (sdd self)
@@ -65,7 +67,7 @@ cdef class sdd (xdd) :
     cpdef sdd drop (sdd self, variables)
     cdef sdd _drop (sdd self, set variables)
 
-cdef sdd makesdd (SDD *s)
+cdef sdd makesdd (SDD s)
 
 ##
 ## Shom
@@ -76,14 +78,15 @@ cdef extern from "ddd/SHom.h" :
         Shom ()
         Shom (const SDD &s)
         Shom (const Shom &h)
+        Shom fixpoint()
         size_t hash() const
 
 cdef class shom :
-    cdef Shom *h
+    cdef Shom h
     cpdef shom fixpoint (shom self)
     cpdef shom lfp (shom self)
     cpdef shom gfp (shom self)
     cpdef shom invert (shom self, sdd potential)
     cpdef str dumps (shom self)
 
-cdef shom makeshom (Shom *h)
+cdef shom makeshom (Shom h)
