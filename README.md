@@ -9,9 +9,7 @@ library (libDDD) https://github.com/lip6/libDDD
 ## Requirements
 
  - libDDD (tested with 1.9.0) installed with the dynamic libraries
-   enabled Current version at https://github.com/lip6/libDDD does not
-   build them yet, instead use the fork at
-   https://github.com/fpom/libDDD
+   enabled
  - Python 3 (tested with 3.5.2), this binding is not expected to work
    with Python 2
  - Cython (tested with 0.27.3)
