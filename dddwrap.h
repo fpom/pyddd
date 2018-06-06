@@ -1,5 +1,6 @@
 #include <string>
 #include <sstream>
+#include <fstream>
 #include "ddd/DDD.h"
 #include "ddd/util/dotExporter.h"
 
@@ -12,7 +13,10 @@
 #define ddd_new_range(var,val1,val2,d) DDD(var,val1,val2,d)
 #define ddd_val_size sizeof(GDDD::val_t)
 
-#define ddd_STOP(d) (d == DDD::one) || (d == DDD::null)
+#define ddd_is_STOP(d) (d == DDD::one) || (d == DDD::null)
+#define ddd_is_ONE(d) (d == DDD::one)
+#define ddd_is_NULL(d) (d == DDD::null)
+#define ddd_is_TOP(d) (d == DDD::top)
 
 #define ddd_concat(a,b) DDD(a ^ b)
 #define ddd_union(a,b) DDD(a + b)
@@ -26,11 +30,16 @@
 #define ddd_iterator_value(i) i->first
 #define ddd_iterator_ddd(i) DDD(i->second)
 
+#define ddd_print(d,s) s << d
+
 #define sdd_ONE GSDD::one
 #define sdd_new_ONE() SDD(GSDD::one)
 #define sdd_new_EMPTY() SDD(GSDD::null)
 #define sdd_new_TOP() SDD(GSDD::top)
-#define sdd_STOP(s) (s == GSDD::one) || (s == GSDD::null)
+#define sdd_is_STOP(s) (s == GSDD::one) || (s == GSDD::null)
+#define sdd_is_ONE(s) (s == GSDD::one)
+#define sdd_is_NULL(s) (s == GSDD::null)
+#define sdd_is_TOP(s) (s == GSDD::top)
 #define sdd_concat(a,b) SDD(a ^ b)
 #define sdd_union(a,b) SDD(a + b)
 #define sdd_intersect(a,b) SDD(a * b)
@@ -52,6 +61,8 @@
 #define sdd_iterator_SDD_value(i) dynamic_cast<SDD*>(i->first)
 #define sdd_iterator_GSDD_value(i) dynamic_cast<SDD*>(i->first)
 #define sdd_iterator_DDD_value(i) dynamic_cast<DDD*>(i->first)
+
+#define sdd_print(d,s) s << d
 
 #define shom_new_Shom_null() Shom::null
 #define shom_new_Shom_var_ddd(var,val,s) Shom(var,val,s)

@@ -33,11 +33,15 @@ cdef class ddd (xdd) :
     cpdef ddd pick (ddd self)
     cpdef dict dict_pick (ddd self)
     cpdef tuple vars (ddd self)
+    cpdef dict varmap (ddd self)
     cpdef bint stop (ddd self)
     cpdef void print_stats (self, bint reinit=*)
     cpdef void dot (ddd self, str path)
     cpdef ddd drop (ddd self, variables)
     cdef ddd _drop (ddd self, set variables)
+    cpdef dict dom (ddd self, dict d=*)
+    cpdef str dumps (ddd self)
+    cpdef void save (ddd self, str path)
 
 cdef ddd makeddd (DDD d)
 
@@ -66,6 +70,8 @@ cdef class sdd (xdd) :
     cpdef void dot (sdd self, str path)
     cpdef sdd drop (sdd self, variables)
     cdef sdd _drop (sdd self, set variables)
+    cpdef str dumps (sdd self)
+    cpdef dict varmap (sdd self)
 
 cdef sdd makesdd (SDD s)
 

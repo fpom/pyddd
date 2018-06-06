@@ -3,12 +3,23 @@ from libcpp.vector cimport vector
 from libcpp.set cimport set as cset
 from libcpp cimport bool
 
-import collections, itertools, functools, operator, os.path, os, subprocess
+import collections, itertools, functools, operator, os.path, os, subprocess, ast
 
 edge = collections.namedtuple("edge", ["varname", "varnum", "value", "child"])
 
 cdef dict VARS = {}
 cdef dict SRAV = {}
+
+cdef int _varpos (str var, bint dddvar) :
+    cdef int pos
+    if var in VARS :
+        pos = VARS[var]
+    else :
+        pos = VARS[var] = len(VARS)
+        SRAV[pos] = var
+        if dddvar :
+            DDD.varName(pos, var.encode())
+    return pos
 
 cdef class xdd :
     cdef void _dot (self, str ext, list files) :
@@ -34,6 +45,10 @@ cdef class xdd :
 ## DDD
 ##
 
+cdef extern from "dddwrap.h" namespace "std" :
+    cdef cppclass ostringstream :
+        string str()
+
 cdef extern from "dddwrap.h" :
     ctypedef short val_t
     cdef const DDD ddd_ONE
@@ -41,7 +56,10 @@ cdef extern from "dddwrap.h" :
     cdef DDD ddd_new_EMPTY()
     cdef DDD ddd_new_TOP()
     cdef DDD ddd_new_range(int var, val_t val1, val_t val2, const DDD&d)
-    cdef bint ddd_STOP(DDD &d)
+    cdef bint ddd_is_STOP(DDD &d)
+    cdef bint ddd_is_ONE(DDD &d)
+    cdef bint ddd_is_NULL(DDD &d)
+    cdef bint ddd_is_TOP(DDD &d)
     cdef DDD ddd_concat (DDD &a, DDD &b)
     cdef DDD ddd_union (DDD &a, DDD &b)
     cdef DDD ddd_intersect (DDD &a, DDD &b)
@@ -53,11 +71,74 @@ cdef extern from "dddwrap.h" :
     cdef DDD ddd_iterator_ddd (ddd_iterator i)
     cdef val_t ddd_iterator_value (ddd_iterator i)
     cdef long ddd_val_size
+    cdef void saveDDD (ofstream &s, vector[DDD] l)
+    cdef void loadDDD (ifstream &s, vector[DDD] &l)
+    cdef void ddd_print (DDD d, ostringstream &s)
+
+cdef extern from "dddwrap.h" namespace "std" :
+    cdef cppclass ofstream :
+        ofstream ()
+        ofstream (const string &filename)
+        void close ()
+        ofstream& write (const char* s, int n)
+    cdef cppclass ifstream :
+        ifstream ()
+        ifstream (const string &filename)
+        void close ()
+        bool eof ()
+    void getline (ifstream& i, string& s)
 
 cdef ddd makeddd (DDD d) :
     cdef ddd obj = ddd.__new__(ddd)
     obj.d = d
     return obj
+
+def ddd_save (str path, *ddds) :
+    cdef ofstream f = ofstream(path.encode())
+    cdef vector[DDD] vec
+    cdef ddd d
+    cdef bytes line
+    cdef dict varmap = {}
+    for d in ddds :
+        vec.push_back(d.d)
+        varmap.update(d.varmap())
+    line = ("Count: %s\n" % len(ddds)).encode()
+    f.write(line, len(line))
+    line = ("Variables: %r\n\n" % varmap).encode()
+    f.write(line, len(line))
+    saveDDD(f, vec)
+    f.close()
+
+def ddd_load (str path) :
+    cdef ifstream f = ifstream(path.encode())
+    cdef vector[DDD] vec
+    cdef int count, pos
+    cdef dict varmap
+    cdef str var
+    cdef bytes line
+    cdef string rawline
+    cdef DDD d
+    # count
+    getline(f, rawline)
+    line = rawline.strip()
+    if not line.startswith(b"Count:") :
+        raise ValueError("header 'Count:' not found")
+    count = ast.literal_eval(line[6:].strip().decode())
+    vec.resize(count)
+    # varmap
+    getline(f, rawline)
+    line = rawline.strip()
+    if not line.startswith(b"Variables:") :
+        raise ValueError("header 'Variables:' not found")
+    varmap = ast.literal_eval(line[10:].strip().decode())
+    for var, pos in varmap.items() :
+        VARS[var] = pos
+        SRAV[pos] = var
+        DDD.varName(pos, var.encode())
+    # DDDs
+    loadDDD(f, vec)
+    f.close()
+    return [makeddd(d) for d in vec]
 
 cpdef long valsize () :
     return ddd_val_size
@@ -83,12 +164,12 @@ cdef class ddd (xdd) :
         cdef int pos
         cdef val_t val
         cdef str var
-        self.d = ddd_new_ONE()
+        if valuation :
+            self.d = ddd_new_ONE()
+        else :
+            self.d = ddd_new_EMPTY()
         for var in sorted(valuation) :
-            if var not in VARS :
-                pos = VARS[var] = len(VARS)
-                SRAV[pos] = var
-                DDD.varName(VARS[var], var.encode())
+            _varpos(var, True)
         for pos, val in sorted(((VARS[var], val) for var, val in valuation.items()),
                                reverse=True) :
             self.d = DDD(pos, val, self.d)
@@ -102,9 +183,7 @@ cdef class ddd (xdd) :
         else :
             suite = d
         if var not in VARS :
-            pos = VARS[var] = len(VARS)
-            SRAV[pos] = var
-            DDD.varName(VARS[var], var.encode())
+            _varpos(var, True)
         return makeddd(ddd_new_range(VARS[var], start, stop, suite.d))
     @classmethod
     def from_values (cls, str var, values) :
@@ -135,6 +214,11 @@ cdef class ddd (xdd) :
                                    (cls(**{var:v}) for v in values),
                                    res)
         return res
+    cpdef void save (ddd self, str path) :
+        ddd_save(path, self)
+    @classmethod
+    def load (cls, str path) :
+        return ddd_load(path)[0]
     cpdef void print_stats (self, bint reinit=True) :
         self.d.pstats(reinit)
     cpdef void dot (ddd self, str path) :
@@ -232,7 +316,7 @@ cdef class ddd (xdd) :
         >>> bool(ddd(a=1, b=2) - ddd(a=1, b=2))
         False
         """
-        return not self.d.empty()
+        return len(self) > 0
     def __hash__ (ddd self) :
         """Hash value: `ddd`s are immutable structures that can be used as
         `dict` keys or `set` elements.
@@ -258,7 +342,7 @@ cdef class ddd (xdd) :
         [(1, ...)]
         """
         cdef ddd_iterator it
-        if ddd_STOP(self.d) :
+        if ddd_is_STOP(self.d) :
             return self
         else :
             it = ddd_iterator_begin(self.d)
@@ -287,12 +371,29 @@ cdef class ddd (xdd) :
         while not ddd_iterator_end(it, self.d) :
             val = ddd_iterator_value(it)
             child = makeddd(ddd_iterator_ddd(it))
-            if ddd_STOP(child.d) :
+            if ddd_is_STOP(child.d) :
                 yield (val,)
             else :
                 for vec in child :
                     yield (val,) + vec
             ddd_iterator_next(it)
+    cpdef dict dom (ddd self, dict d=None) :
+        cdef dict ret = {} if d is None else d
+        cdef str var = self.varname()
+        cdef set val
+        cdef ddd child
+        cdef ddd_iterator it = ddd_iterator_begin(self.d)
+        if var in ret :
+            val = ret[var]
+        else :
+            val = ret[var] = set()
+        while not ddd_iterator_end(it, self.d) :
+            child = makeddd(ddd_iterator_ddd(it))
+            val.add(ddd_iterator_value(it))
+            if not ddd_is_STOP(child.d) :
+                child.dom(ret)
+            ddd_iterator_next(it)
+        return ret
     cpdef tuple vars (ddd self) :
         """Return the `tuple` of variables names on the `ddd`.
 
@@ -301,12 +402,29 @@ cdef class ddd (xdd) :
         """
         cdef ddd child
         cdef ddd_iterator it
-        if ddd_STOP(self.d) :
+        if ddd_is_STOP(self.d) :
             return ()
         else :
             it = ddd_iterator_begin(self.d)
             child = makeddd(ddd_iterator_ddd(it))
             return (self.varname(),) + child.vars()
+    cpdef dict varmap (ddd self) :
+        """Return the `dict` of variables names on the `ddd` mapped to their numbers.
+
+        >>> ddd(a=1, b=2, c=3).varmap() == {'a': 0, 'b': 1, 'c': 2}
+        True
+        """
+        cdef ddd child
+        cdef dict d
+        cdef ddd_iterator it
+        if ddd_is_STOP(self.d) :
+            return {}
+        else :
+            it = ddd_iterator_begin(self.d)
+            child = makeddd(ddd_iterator_ddd(it))
+            d = child.varmap()
+            d[self.varname()] = self.d.variable()
+            return d
     def items (ddd self) :
         """Yield all the elements in the `ddd`, as `dict`s.
 
@@ -333,7 +451,7 @@ cdef class ddd (xdd) :
         cdef str var
         cdef ddd child
         cdef ddd_iterator it = ddd_iterator_begin(self.d)
-        if not ddd_STOP(self.d) :
+        if not ddd_is_STOP(self.d) :
             while not ddd_iterator_end(it, self.d) :
                 val = ddd_iterator_value(it)
                 child = makeddd(ddd_iterator_ddd(it))
@@ -373,7 +491,7 @@ cdef class ddd (xdd) :
         >>> ddd.empty().stop()
         True
         """
-        return ddd_STOP(self.d)
+        return ddd_is_STOP(self.d)
     cpdef ddd drop (ddd self, variables) :
         return self._drop(set(variables))
     cdef ddd _drop (ddd self, set variables) :
@@ -382,7 +500,7 @@ cdef class ddd (xdd) :
         cdef bint cut
         cdef ddd ret, tail
         cdef ddd_iterator it
-        if ddd_STOP(self.d) :
+        if ddd_is_STOP(self.d) :
             return self
         var = self.varname()
         num = self.d.variable()
@@ -397,6 +515,10 @@ cdef class ddd (xdd) :
                 ret |= makeddd(DDD(num, ddd_iterator_value(it), tail.d))
             ddd_iterator_next(it)
         return ret
+    cpdef str dumps (ddd self) :
+        cdef ostringstream oss
+        ddd_print(self.d, oss)
+        return oss.str().decode()
 
 ##
 ## SDD
@@ -409,7 +531,10 @@ cdef extern from "dddwrap.h" :
     cdef SDD sdd_new_ONE()
     cdef SDD sdd_new_EMPTY()
     cdef SDD sdd_new_TOP()
-    cdef bint sdd_STOP(SDD &s)
+    cdef bint sdd_is_STOP(SDD &s)
+    cdef bint sdd_is_ONE(SDD &s)
+    cdef bint sdd_is_NULL(SDD &s)
+    cdef bint sdd_is_TOP(SDD &s)
     cdef SDD sdd_concat(SDD &a, SDD &b)
     cdef SDD sdd_union(SDD &a, SDD &b)
     cdef SDD sdd_intersect(SDD &a, SDD &b)
@@ -429,6 +554,7 @@ cdef extern from "dddwrap.h" :
     cdef SDD *sdd_iterator_GSDD_value (sdd_iterator i)
     cdef DDD *sdd_iterator_DDD_value (sdd_iterator i)
     cdef int exportDot(const SDD &s, const string &path)
+    cdef void sdd_print (SDD d, ostringstream &s)
 
 cdef sdd makesdd (SDD s) :
     cdef sdd obj = sdd.__new__(sdd)
@@ -473,9 +599,7 @@ cdef class sdd (xdd) :
         cdef str var
         self.s = sdd_new_ONE()
         for var in sorted(valuation) :
-            if var not in VARS :
-                pos = VARS[var] = len(VARS)
-                SRAV[pos] = var
+            _varpos(var, False)
         for pos, val in sorted(((VARS[var], val) for var, val in valuation.items()),
                                reverse=True) :
             if isinstance(val, ddd) :
@@ -565,7 +689,7 @@ cdef class sdd (xdd) :
         >>> bool(sdd(a=ddd(x=1)) - sdd(a=ddd(x=1)))
         False
         """
-        return not self.s.empty()
+        return len(self) > 0
     def __hash__ (sdd self) :
         """Hash value: `sdd`s are immutable structures that can be used as
         `dict` keys or `set` elements.
@@ -600,7 +724,7 @@ cdef class sdd (xdd) :
         cdef xdd val
         cdef ddd d
         cdef sdd s
-        if sdd_STOP(self.s) :
+        if sdd_is_STOP(self.s) :
             return self
         else :
             it = sdd_iterator_begin(self.s)
@@ -638,7 +762,7 @@ cdef class sdd (xdd) :
         while not sdd_iterator_end(it, self.s) :
             child = makesdd(sdd_iterator_sdd(it))
             val = sdd_iterator_value(it)
-            if sdd_STOP(child.s) :
+            if sdd_is_STOP(child.s) :
                 yield (val,)
             else :
                 for vec in child :
@@ -652,12 +776,24 @@ cdef class sdd (xdd) :
         """
         cdef xdd child
         cdef sdd_iterator it
-        if sdd_STOP(self.s) :
+        if sdd_is_STOP(self.s) :
             return ()
         else :
             it = sdd_iterator_begin(self.s)
             child = makesdd(sdd_iterator_sdd(it))
             return (self.varname(),) + child.vars()
+    cpdef dict varmap (sdd self) :
+        cdef sdd child
+        cdef dict d
+        cdef sdd_iterator it
+        if sdd_is_STOP(self.s) :
+            return {}
+        else :
+            it = sdd_iterator_begin(self.s)
+            child = makesdd(sdd_iterator_sdd(it))
+            d = child.varmap()
+            d[self.varname()] = self.s.variable()
+            return d
     def items (sdd self) :
         """Yield all the elements in the `sdd`, as `dict`s.
 
@@ -712,7 +848,7 @@ cdef class sdd (xdd) :
         cdef sdd child
         cdef xdd val
         cdef sdd_iterator it = sdd_iterator_begin(self.s)
-        if not sdd_STOP(self.s) :
+        if not sdd_is_STOP(self.s) :
             while not sdd_iterator_end(it, self.s) :
                 val = sdd_iterator_value(it)
                 child = makesdd(sdd_iterator_sdd(it))
@@ -752,7 +888,7 @@ cdef class sdd (xdd) :
         >>> sdd.empty().stop()
         True
         """
-        return sdd_STOP(self.s)
+        return sdd_is_STOP(self.s)
     cpdef sdd drop (sdd self, variables) :
         return self._drop(set(variables))
     cdef sdd _drop (sdd self, set variables) :
@@ -763,7 +899,7 @@ cdef class sdd (xdd) :
         cdef bint cut
         cdef sdd ret
         cdef sdd_iterator it
-        if sdd_STOP(self.s) :
+        if sdd_is_STOP(self.s) :
             return self
         cut = var in variables
         ret = self.empty()
@@ -783,6 +919,10 @@ cdef class sdd (xdd) :
                     ret |= makesdd(sdd_new_SDDs(self.s.variable(), s.s, t.s))
             sdd_iterator_next(it)
         return ret
+    cpdef str dumps (sdd self) :
+        cdef ostringstream oss
+        sdd_print(self.s, oss)
+        return oss.str().decode()
 
 ##
 ## Shom
@@ -808,10 +948,6 @@ cdef extern from "dddwrap.h" :
     cdef Shom shom_addset(const cset[Shom] &s)
     ctypedef cset[Shom] shom_set
     cdef Shom fixpoint(const Shom &s)
-
-cdef extern from "dddwrap.h" namespace "std" :
-    cdef cppclass ostringstream :
-        string str()
 
 cdef shom makeshom (Shom h) :
     cdef shom obj = shom.__new__(shom)
