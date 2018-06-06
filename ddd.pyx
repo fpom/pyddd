@@ -97,10 +97,12 @@ def ddd_save (str path, *ddds) :
     cdef ofstream f = ofstream(path.encode())
     cdef vector[DDD] vec
     cdef ddd d
+    cdef int i
     cdef bytes line
     cdef dict varmap = {}
-    for d in ddds :
-        vec.push_back(d.d)
+    vec.resize(len(ddds))
+    for i, d in enumerate(ddds) :
+        vec[i] = d.d
         varmap.update(d.varmap())
     line = ("Count: %s\n" % len(ddds)).encode()
     f.write(line, len(line))
