@@ -93,54 +93,76 @@ cdef ddd makeddd (DDD d) :
     obj.d = d
     return obj
 
-def ddd_save (str path, *ddds) :
+def ddd_save (str path, *ddds, **headers) :
     cdef ofstream f = ofstream(path.encode())
     cdef vector[DDD] vec
     cdef ddd d
     cdef int i
     cdef bytes line
     cdef dict varmap = {}
+    cdef tuple h
     vec.resize(len(ddds))
     for i, d in enumerate(ddds) :
         vec[i] = d.d
         varmap.update(d.varmap())
-    line = ("Count: %s\n" % len(ddds)).encode()
-    f.write(line, len(line))
-    line = ("Variables: %r\n\n" % varmap).encode()
-    f.write(line, len(line))
+    headers["Count"] = len(ddds)
+    headers["Variables"] = varmap
+    for h in sorted(headers.items()) :
+        line = ("%s: %r\n" % h).encode()
+        f.write(line, len(line))
+    f.write(b"\n", 1)
     saveDDD(f, vec)
     f.close()
 
 def ddd_load (str path) :
     cdef ifstream f = ifstream(path.encode())
+    cdef set required = {"Count", "Variables"}
+    cdef dict headers = {}
     cdef vector[DDD] vec
-    cdef int count, pos
+    cdef int pos, count = 0
     cdef dict varmap
-    cdef str var
-    cdef bytes line
+    cdef str var, r
+    cdef bytes line, h, s
     cdef string rawline
+    cdef object obj
     cdef DDD d
-    # count
-    getline(f, rawline)
-    line = rawline.strip()
-    if not line.startswith(b"Count:") :
-        raise ValueError("header 'Count:' not found")
-    count = ast.literal_eval(line[6:].strip().decode())
+    # read headers
+    while True :
+        getline(f, rawline)
+        line = rawline.strip()
+        if not line :
+            break
+        try :
+            h, line = (s.strip() for s in line.split(b":", 1))
+            obj = ast.literal_eval(line.strip().decode())
+        except :
+            raise ValueError("invalid header line: %r" % line.decode())
+        if h == b"Count" :
+            count = obj
+            if "Count" in required :
+                required.remove("Count")
+            else :
+                raise ValueError("duplicated header 'Count'")
+        elif h == b"Variables" :
+            varmap = obj
+            if "Variables" in required :
+                required.remove("Variables")
+            else :
+                raise ValueError("duplicated header 'Variables'")
+        else :
+            headers[h.decode()] = obj
+    if required :
+        raise ValueError("missing headers: %s" % ", ".join(repr(r) for r in required))
+    # read DDDs
     vec.resize(count)
-    # varmap
-    getline(f, rawline)
-    line = rawline.strip()
-    if not line.startswith(b"Variables:") :
-        raise ValueError("header 'Variables:' not found")
-    varmap = ast.literal_eval(line[10:].strip().decode())
     for var, pos in varmap.items() :
         VARS[var] = pos
         SRAV[pos] = var
         DDD.varName(pos, var.encode())
-    # DDDs
     loadDDD(f, vec)
+    # done
     f.close()
-    return [makeddd(d) for d in vec]
+    return headers, [makeddd(d) for d in vec]
 
 cpdef long valsize () :
     return ddd_val_size
@@ -220,7 +242,7 @@ cdef class ddd (xdd) :
         ddd_save(path, self)
     @classmethod
     def load (cls, str path) :
-        return ddd_load(path)[0]
+        return ddd_load(path)[0][0]
     cpdef void print_stats (self, bint reinit=True) :
         self.d.pstats(reinit)
     cpdef void dot (ddd self, str path) :
