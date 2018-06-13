@@ -30,7 +30,7 @@ cdef extern from "ddd/DDD.h" :
 cdef class ddd (xdd) :
     cdef DDD d
     cpdef str varname (ddd self)
-    cpdef ddd pick (ddd self)
+    cpdef ddd pick (ddd self, unsigned int count=*)
     cpdef dict dict_pick (ddd self)
     cpdef tuple vars (ddd self)
     cpdef dict varmap (ddd self)
@@ -62,7 +62,7 @@ cdef extern from "ddd/SDD.h" :
 cdef class sdd (xdd) :
     cdef SDD s
     cpdef str varname (sdd self)
-    cpdef sdd pick (sdd self)
+    cpdef sdd pick (sdd self, unsigned int count=*)
     cpdef dict dict_pick (sdd self)
     cpdef tuple vars (sdd self)
     cpdef bint stop (sdd self)

@@ -358,7 +358,7 @@ cdef class ddd (xdd) :
         'a'
         """
         return self.d.getvarName(self.d.variable()).decode()
-    cpdef ddd pick (ddd self) :
+    cpdef ddd pick (ddd self, unsigned int count=1) :
         """Pick one element in the `ddd` and return it as a `ddd`.
 
         >>> d = ddd(a=1, b=2) | ddd(a=1, b=3)
@@ -366,13 +366,23 @@ cdef class ddd (xdd) :
         [(1, ...)]
         """
         cdef ddd_iterator it
-        if ddd_is_STOP(self.d) :
+        cdef unsigned int toget = count
+        cdef ddd child
+        cdef ddd ret
+        if count == 0 :
+            return ddd.empty()
+        elif ddd_is_STOP(self.d) :
             return self
-        else :
-            it = ddd_iterator_begin(self.d)
-            child = makeddd(ddd_iterator_ddd(it))
-            return makeddd(DDD(self.d.variable(), ddd_iterator_value(it),
-                               ddd_ONE)) + child.pick()
+        ret = ddd.empty()
+        it = ddd_iterator_begin(self.d)
+        while not ddd_iterator_end(it, self.d) :
+            child = makeddd(ddd_iterator_ddd(it)).pick(toget)
+            ret |= makeddd(DDD(self.d.variable(), ddd_iterator_value(it), child.d))
+            toget = count - len(ret)
+            if toget == 0 :
+                break
+            ddd_iterator_next(it)
+        return ret
     cpdef dict dict_pick (ddd self) :
         """Pick one element in the `ddd` and return it as a `dict`.
 
@@ -630,6 +640,17 @@ cdef class sdd (xdd) :
                 self.s = sdd_new_SDDd(pos, (<ddd>val).d, self.s)
             else :
                 self.s = sdd_new_SDDs(pos, (<sdd>val).s, self.s)
+    @classmethod
+    def mkz (cls, *arcs) :
+        cdef int i
+        cdef xdd a
+        cdef sdd self = sdd()
+        for i, a in enumerate(arcs) :
+            if isinstance(a, ddd) :
+                self.s = sdd_new_SDDd(i, (<ddd>a).d, self.s)
+            else :
+                self.s = sdd_new_SDDs(i, (<sdd>a).s, self.s)
+        return self
     cpdef void print_stats (self, bint reinit=True) :
         self.s.pstats(reinit)
     cpdef void dot (sdd self, str path) :
@@ -734,7 +755,7 @@ cdef class sdd (xdd) :
             return SRAV[self.s.variable()]
         except KeyError :
             return "#%s" % self.s.variable()
-    cpdef sdd pick (sdd self) :
+    cpdef sdd pick (sdd self, unsigned int count=1) :
         """Pick one element in the `sdd` and return it as a `sdd`.
 
         >>> s = (sdd(a=ddd(x=1, y=2), b=ddd(z=3), c=sdd(i=ddd(u=4, v=5)))
@@ -747,21 +768,29 @@ cdef class sdd (xdd) :
         cdef sdd_iterator it
         cdef xdd val
         cdef ddd d
-        cdef sdd s
-        if sdd_is_STOP(self.s) :
+        cdef sdd s, child, ret
+        cdef unsigned int toget = count
+        if count == 0 :
+            return sdd.empty()
+        elif sdd_is_STOP(self.s) :
             return self
-        else :
-            it = sdd_iterator_begin(self.s)
-            child = makesdd(sdd_iterator_sdd(it))
+        ret = sdd.empty()
+        it = sdd_iterator_begin(self.s)
+        while not sdd_iterator_end(it, self.s) :
+            child = makesdd(sdd_iterator_sdd(it)).pick(toget)
             val = sdd_iterator_value(it)
+            toget = count - (len(ret) * len(child))
             if isinstance(val, ddd) :
-                d = (<ddd>val).pick()
-                return makesdd(sdd_new_SDDd(self.s.variable(), d.d,
-                                            sdd_ONE)) + child.pick()
+                d = (<ddd>val).pick(toget)
+                ret |= makesdd(sdd_new_SDDd(self.s.variable(), d.d, child.s))
             else :
-                s = (<sdd>val).pick()
-                return makesdd(sdd_new_SDDs(self.s.variable(), s.s,
-                                            sdd_ONE)) + child.pick()
+                s = (<sdd>val).pick(toget)
+                ret |= makesdd(sdd_new_SDDs(self.s.variable(), s.s, child.s))
+            toget = count - len(ret)
+            if toget == 0 :
+                break
+            sdd_iterator_next(it)
+        return ret
     cpdef dict dict_pick (sdd self) :
         """Pick one element in the `sdd` and return it as a `dict`.
 
