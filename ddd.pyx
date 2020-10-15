@@ -1,6 +1,6 @@
 from libcpp.pair cimport pair
-from libcpp.vector cimport vector
 from libcpp.set cimport set as cset
+from libcpp.vector cimport vector
 from libcpp cimport bool
 
 import collections, itertools, functools, operator, os.path, os, subprocess, ast
@@ -50,7 +50,6 @@ cdef extern from "dddwrap.h" namespace "std" :
         string str()
 
 cdef extern from "dddwrap.h" :
-    ctypedef short val_t
     cdef const DDD ddd_ONE
     cdef DDD ddd_new_ONE()
     cdef DDD ddd_new_EMPTY()
@@ -242,7 +241,7 @@ cdef class ddd (xdd) :
         ddd_save(path, self)
     @classmethod
     def load (cls, str path) :
-        return ddd_load(path)[0][0]
+        return ddd_load(path)[1][0]
     cpdef void print_stats (self, bint reinit=True) :
         self.d.pstats(reinit)
     cpdef void dot (ddd self, str path) :
@@ -411,6 +410,21 @@ cdef class ddd (xdd) :
                 for vec in child :
                     yield (val,) + vec
             ddd_iterator_next(it)
+    def explicit (ddd self) :
+        cdef val_t val
+        cdef int var
+        cdef ddd child, c
+        cdef ddd_iterator it = ddd_iterator_begin(self.d)
+        while not ddd_iterator_end(it, self.d) :
+            val = ddd_iterator_value(it)
+            child = makeddd(ddd_iterator_ddd(it))
+            if ddd_is_STOP(child.d) :
+                yield makeddd(DDD(self.d.variable(), val))
+            else :
+                var = self.d.variable()
+                for c in child.explicit() :
+                    yield makeddd(DDD(var, val, c.d))
+            ddd_iterator_next(it)
     cpdef dict dom (ddd self, dict d=None) :
         cdef dict ret = {} if d is None else d
         cdef str var = self.varname()
@@ -490,6 +504,26 @@ cdef class ddd (xdd) :
                 val = ddd_iterator_value(it)
                 child = makeddd(ddd_iterator_ddd(it))
                 yield edge(self.varname(), self.d.variable(), val, child)
+                ddd_iterator_next(it)
+    cpdef to_csv (ddd self, str path) :
+        with open(path, "w") as out :
+            out.write(",".join(self.vars()) + "\n")
+            self._csv("", self.d, out)
+    cdef _csv (ddd self, str row, DDD head, object out) :
+        cdef DDD child
+        cdef val_t value
+        cdef ddd_iterator it
+        if ddd_is_STOP(head) :
+            out.write(row + "\n")
+        else :
+            it = ddd_iterator_begin(head)
+            while not ddd_iterator_end(it, head) :
+                value = ddd_iterator_value(it)
+                child = ddd_iterator_ddd(it)
+                if row == "" :
+                    self._csv(str(value), child, out)
+                else :
+                    self._csv(row + "," + str(value), child, out)
                 ddd_iterator_next(it)
     @classmethod
     def one (cls) :
@@ -821,6 +855,26 @@ cdef class sdd (xdd) :
                 for vec in child :
                     yield (val,) + vec
             sdd_iterator_next(it)
+    def explicit (sdd self) :
+        cdef int var
+        cdef xdd val, v
+        cdef sdd child, c
+        cdef sdd_iterator it
+        if sdd_is_STOP(self.s) :
+            yield self
+        else :
+            it = sdd_iterator_begin(self.s)
+            var = self.s.variable()
+            while not sdd_iterator_end(it, self.s) :
+                child = makesdd(sdd_iterator_sdd(it))
+                val = sdd_iterator_value(it)
+                for c in child.explicit() :
+                    for v in val.explicit() :
+                        if isinstance(v, sdd) :
+                            yield makesdd(SDD(var, (<sdd>v).s, c.s))
+                        else :
+                            yield makesdd(SDD(var, (<ddd>v).d, c.s))
+                sdd_iterator_next(it)
     cpdef tuple vars (sdd self) :
         """Return the `tuple` of variables names on the `sdd`.
 

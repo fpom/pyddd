@@ -1,3 +1,4 @@
+from libcpp.map cimport map as cmap
 from libcpp.string cimport string
 
 cdef class xdd :
@@ -12,6 +13,7 @@ cdef extern from "dddwrap.h" :
 
 cdef extern from "ddd/DDD.h" :
     cdef cppclass DDD :
+        cmap[int,string] mapVarName
         @staticmethod
         void varName (int var, const string &name)
         @staticmethod
@@ -42,6 +44,8 @@ cdef class ddd (xdd) :
     cpdef dict dom (ddd self, dict d=*)
     cpdef str dumps (ddd self)
     cpdef void save (ddd self, str path)
+    cpdef to_csv (ddd self, str path)
+    cdef _csv (ddd self, str row, DDD head, object out)
 
 cdef ddd makeddd (DDD d)
 
@@ -51,8 +55,14 @@ cdef ddd makeddd (DDD d)
 
 cdef extern from "ddd/SDD.h" :
     cdef cppclass SDD :
+        @staticmethod
+        void varName (int var, const string &name)
+        @staticmethod
+        const string getvarName (int var)
         SDD ()
         SDD (const SDD &)
+        SDD (int var, DDD val, const SDD)
+        SDD (int var, SDD val, const SDD)
         long double nbStates() const
         bint empty() const
         size_t set_hash() const

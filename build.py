@@ -22,7 +22,7 @@ extensions = [Extension("ddd",
                         language="c++",
                         extra_compile_args=["-std=c++11"])]
 
-setup(ext_modules=cythonize(extensions),
+setup(ext_modules=cythonize(extensions, language_level=3),
       script_args=["build_ext", "--inplace"])
 
 import ddd
