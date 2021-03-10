@@ -8,32 +8,16 @@ library (libDDD) https://github.com/lip6/libDDD
 
 ## Requirements
 
- - libDDD (tested with 1.9.0) installed with the dynamic libraries
-   enabled
  - Python 3 (tested with 3.5.2), this binding is not expected to work
    with Python 2
  - Cython (tested with 0.27.3)
 
+libDDD (tested with 1.9.0) will be automatically downloaded and installed
+during the installation
+
 ## Installation
 
-Run `build.py -I DDDINC -L DDDLIB` with Python 3 to build the library.
-`DDDINC` is the path where file `ddd/DDD.h` can be found, it defaults
-to `$HOME/.local/include`. `DDDLIB` is the path where the dynamic
-library is installed (`libDDD.so` under Linux), it defaults to
-`$HOME/.local/lib`. For instance:
-
-    $ python3 build.py
-    Compiling ddd.pyx because it changed.
-    [1/1] Cythonizing ddd.pyx
-    running build_ext
-    building 'ddd' extension
-    ### C++ compiler output ###
-    built ddd module in 'ddd.cpython-35m-x86_64-linux-gnu.so'
-
-Script `build.py` will create a dynamic library that implements Python
-module `ddd` and whose path is printed at the end of script execution
-(in the example above: `ddd.cpython-35m-x86_64-linux-gnu.so`). This
-file should be copied somewhere on your `PYTHONPATH`.
+Run `python setup.py install` as usual.
 
 You may check the doctests in the module by running `python3 test.py`,
 which should produce no output if everything goes well.
