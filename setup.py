@@ -39,6 +39,9 @@ class install (_install) :
             Path(base / "usr").rmdir()
         except :
             pass
+        hdr = Path(self.install_headers)
+        hdr.mkdir(exist_ok=True, parents=True)
+        copy("ddd.pxd", hdr / "ddd.pxd")
         super().run()
 
 setup(name="pyddd",
