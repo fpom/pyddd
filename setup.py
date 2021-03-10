@@ -12,7 +12,6 @@ description = (long_description.splitlines())[0]
 DDDURL = "https://lip6.github.io/libDDD/linux.tgz"
 
 BUILD = Path("build")
-BUILD.mkdir(exist_ok=True)
 DDDTGZ = str(BUILD / "libDDD.tar.gz")
 DDDINC = str(BUILD / "usr/local/include")
 DDDLIB = str(BUILD / "usr/local/lib")
@@ -25,6 +24,7 @@ class install (_install) :
     def run (self) :
         base = Path(self.install_base)
         print(f"downloading {DDDURL!r}")
+        BUILD.mkdir(exist_ok=True)
         with urllib.request.urlopen(DDDURL) as remote, \
              open(DDDTGZ, "wb") as local :
             local.write(remote.read())
@@ -39,7 +39,7 @@ class install (_install) :
             Path(base / "usr").rmdir()
         except :
             pass
-        hdr = Path(self.install_headers)
+        hdr = Path(self.install_lib)
         hdr.mkdir(exist_ok=True, parents=True)
         copy("ddd.pxd", hdr / "ddd.pxd")
         super().run()
