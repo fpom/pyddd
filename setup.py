@@ -4,7 +4,7 @@ from distutils.extension import Extension
 from distutils.command.install import install as _install
 from pathlib import Path
 
-import urllib.request, tarfile, shutil
+import urllib.request, tarfile, shutil, os
 
 long_description = Path("README.md").read_text(encoding="utf-8")
 description = (long_description.splitlines())[0]
@@ -16,9 +16,30 @@ DDDTGZ = str(BUILD / "libDDD.tar.gz")
 DDDINC = str(BUILD / "usr/local/include")
 DDDLIB = str(BUILD / "usr/local/lib")
 
-def copy (src, dst, *l, **k) :
-    print(src, "->", dst)
-    shutil.copy2(src, dst, *l, **k)
+def copy (src, tgt, verbose=True) :
+    if verbose :
+        print(src, "->", tgt)
+    shutil.copy2(src, tgt)
+
+def copytree (src, tgt, verbose=True) :
+    if not tgt.exists() :
+        if verbose :
+            print(src, "->", tgt)
+        tgt.mkdir(exist_ok=True, parents=True)
+    for child in src.iterdir() :
+        if child.is_dir() :
+            copytree(child, tgt / child.name, verbose)
+        elif child.is_symlink() :
+            _tgt = tgt / child.name
+            if not _tgt.exists() :
+                if verbose :
+                    print(child, "->", _tgt)
+                link = os.readlink(str(child))
+                _tgt.symlink_to(link)
+        elif child.is_file() :
+            _tgt = tgt / child.name
+            if not _tgt.exists() :
+                copy(str(child), str(_tgt), verbose)
 
 class install (_install) :
     def run (self) :
@@ -30,19 +51,13 @@ class install (_install) :
             local.write(remote.read())
         with tarfile.open(DDDTGZ) as tar :
             tar.extractall(BUILD)
-        for tree in ("include", "lib") :
-            shutil.copytree(str(BUILD / "usr/local" / tree), str(base / tree),
-                            symlinks=True, ignore_dangling_symlinks=True,
-                            copy_function=copy,)
-        try :
-            Path(base / "usr/local").rmdir()
-            Path(base / "usr").rmdir()
-        except :
-            pass
-        hdr = Path(self.install_lib)
-        hdr.mkdir(exist_ok=True, parents=True)
-        copy("ddd.pxd", hdr / "ddd.pxd")
         super().run()
+        for tree in ("include", "lib") :
+            copytree(BUILD / "usr/local" / tree, base / tree)
+        for path, names in [(Path(self.install_lib), ["ddd.pxd", "dddwrap.h"])] :
+            path.mkdir(exist_ok=True, parents=True)
+            for name in names :
+                copy(name, path / name)
 
 setup(name="pyddd",
       description=description,
