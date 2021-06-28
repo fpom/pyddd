@@ -285,6 +285,14 @@ cdef class ddd (xdd) :
         [(1, 2), (3, 4)]
         """
         return makeddd(ddd_union(self.d, other.d))
+    def __xor__ (ddd self, ddd other) :
+        """Disjoint union: `a^b` is `(a|b) - (a&b)`.
+
+        >>> d = (ddd(a=1, b=2) | ddd(a=3, b=4)) ^ (ddd(a=3, b=4), ddd(a=5, b=6))
+        >>> list(sorted(d))
+        [(1, 2), (5, 6)]
+        """
+        return (self | other) - (self & other)
     def __and__ (ddd self, ddd other) :
         """Intersection: `a&b` contains all the elements contained in both `a` and `b`.
 
@@ -719,6 +727,17 @@ cdef class sdd (xdd) :
          ((3,), (4,))]
         """
         return makesdd(sdd_union(self.s, other.s))
+    def __xor__ (sdd self, sdd other) :
+        """Disjoint union: `a^b` is `(a|b) - (a&b)`.
+
+        >>> x = sdd(a=ddd(x=1), b=ddd(y=2)) | sdd(a=ddd(x=3), b=ddd(y=4))
+        >>> y = sdd(a=ddd(x=1), b=ddd(y=2)) | sdd(a=ddd(x=6), b=ddd(y=7))
+        >>> z = x ^ y
+        >>> list(sorted(z.nest()))
+        [((4,), (4,)),
+         ((6,), (7,))]
+        """
+        return makesdd(sdd_union(self.s, other.s))
     def __and__ (sdd self, sdd other) :
         """Intersection: `a&b` contains all the elements contained in both `a` and `b`.
 
@@ -1110,6 +1129,8 @@ cdef class shom :
         return makeshom(shom_invert(self.h, potential.s)) & potential
     def __or__ (shom self, shom other) :
         return makeshom(shom_union(self.h, other.h))
+    def __xor__ (shom self, shom other) :
+        return (self | other) - (self & other)
     def __mul__ (shom self, shom other) :
         return makeshom(shom_circ(self.h, other.h))
     def __and__ (shom self, other) :
