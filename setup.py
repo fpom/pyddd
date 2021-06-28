@@ -41,11 +41,12 @@ def copytree (src, tgt, verbose=True) :
             if not _tgt.exists() :
                 copy(str(child), str(_tgt), verbose)
 
-print(f"downloading {DDDURL!r}")
 BUILD.mkdir(exist_ok=True)
-with urllib.request.urlopen(DDDURL) as remote, \
-     open(DDDTGZ, "wb") as local :
-    local.write(remote.read())
+if not Path(DDDTGZ).exists() :
+    print(f"downloading {DDDURL!r}")
+    with urllib.request.urlopen(DDDURL) as remote, \
+         open(DDDTGZ, "wb") as local :
+        local.write(remote.read())
 with tarfile.open(DDDTGZ) as tar :
     tar.extractall(BUILD)
 
