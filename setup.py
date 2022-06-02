@@ -32,8 +32,8 @@ class install (_install) :
         self.copy_tree(str(BUILD / "usr/local/lib"),
                        str(base / "lib"))
         self.mkpath(self.install_lib)
+        self.copy_file("dddwrap.h", self.install_lib)
         self.copy_file("ddd.pxd", self.install_lib)
-        self.copy_file("dddwrap.h", DDDINC)
         super().run()
 
 setup(name="pyddd",
