@@ -4,42 +4,14 @@ from distutils.extension import Extension
 from distutils.command.install import install as _install
 from pathlib import Path
 
-import urllib.request, tarfile, shutil, os
+import urllib.request, tarfile
 
 long_description = Path("README.md").read_text(encoding="utf-8")
 description = (long_description.splitlines())[0]
 
-DDDURL = "https://lip6.github.io/libDDD/linux.tgz"
-
 BUILD = Path("build")
-DDDTGZ = str(BUILD / "libDDD.tar.gz")
-DDDINC = str(BUILD / "usr/local/include")
-DDDLIB = str(BUILD / "usr/local/lib")
-
-def copy (src, tgt, verbose=True) :
-    if verbose :
-        print(src, "->", tgt)
-    shutil.copy2(src, tgt)
-
-def copytree (src, tgt, verbose=True) :
-    if not tgt.exists() :
-        if verbose :
-            print(src, "->", tgt)
-        tgt.mkdir(exist_ok=True, parents=True)
-    for child in src.iterdir() :
-        if child.is_dir() :
-            copytree(child, tgt / child.name, verbose)
-        elif child.is_symlink() :
-            _tgt = tgt / child.name
-            if not _tgt.exists() :
-                if verbose :
-                    print(child, "->", _tgt)
-                link = os.readlink(str(child))
-                _tgt.symlink_to(link)
-        elif child.is_file() :
-            _tgt = tgt / child.name
-            if not _tgt.exists() :
-                copy(str(child), str(_tgt), verbose)
+DDDURL = "https://lip6.github.io/libDDD/linux.tgz"
+DDDTGZ = BUILD / "libDDD.tar.gz"
 
 BUILD.mkdir(exist_ok=True)
 if not Path(DDDTGZ).exists() :
@@ -52,14 +24,19 @@ with tarfile.open(DDDTGZ) as tar :
 
 class install (_install) :
     def run (self) :
-        super().run()
+        global DDDINC, DDDLIB
         base = Path(self.install_base)
-        for tree in ("include", "lib") :
-            copytree(BUILD / "usr/local" / tree, base / tree)
-        for path, names in [(Path(self.install_lib), ["ddd.pxd", "dddwrap.h"])] :
-            path.mkdir(exist_ok=True, parents=True)
-            for name in names :
-                copy(name, path / name)
+        DDDINC = base / "include"
+        DDDLIB = base / "lib"
+        self.copy_tree(str(BUILD / "usr/local/include"),
+                       str(base / "include"))
+        self.copy_tree(str(BUILD / "usr/local/lib"),
+                       str(base / "lib"))
+        self.mkpath(self.install_lib)
+        self.copy_file("ddd.pxd", self.install_lib)
+        self.copy_file("dddwrap.h", DDDINC)
+
+setup(cmdclass={"install" : install})
 
 setup(name="pyddd",
       description=description,
@@ -75,11 +52,10 @@ setup(name="pyddd",
                    "Operating System :: OS Independent"],
       ext_modules=cythonize([Extension("ddd",
                                        ["ddd.pyx"],
-                                       include_dirs = [DDDINC],
+                                       include_dirs = [str(DDDINC)],
                                        libraries = ["DDD"],
-                                       library_dirs = [DDDLIB],
+                                       library_dirs = [str(DDDLIB)],
                                        language="c++",
                                        extra_compile_args=["-std=c++11"])],
                             language_level=3),
-      cmdclass={"install" : install},
 )
