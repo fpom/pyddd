@@ -12,6 +12,7 @@ description = (long_description.splitlines())[0]
 BUILD = Path("build")
 DDDURL = "https://lip6.github.io/libDDD/linux.tgz"
 DDDTGZ = BUILD / "libDDD.tar.gz"
+DDDINC = DDDLIB = None
 
 BUILD.mkdir(exist_ok=True)
 if not Path(DDDTGZ).exists() :
