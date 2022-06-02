@@ -36,8 +36,10 @@ class install (_install) :
         self.mkpath(self.install_lib)
         self.copy_file("ddd.pxd", self.install_lib)
         self.copy_file("dddwrap.h", DDDINC)
+        super().run()
 
-setup(cmdclass={"install" : install})
+setup(name="pyddd",
+      cmdclass={"install" : install})
 
 setup(name="pyddd",
       description=description,
