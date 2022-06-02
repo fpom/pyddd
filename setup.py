@@ -37,9 +37,6 @@ class install (_install) :
         super().run()
 
 setup(name="pyddd",
-      cmdclass={"install" : install})
-
-setup(name="pyddd",
       description=description,
       long_description=long_description,
       url="https://github.com/fpom/pyddd",
@@ -51,6 +48,7 @@ setup(name="pyddd",
                    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
                    "Programming Language :: Python :: 3",
                    "Operating System :: OS Independent"],
+      cmdclass={"install" : install},
       ext_modules=cythonize([Extension("ddd",
                                        ["ddd.pyx"],
                                        language="c++",
