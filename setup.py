@@ -12,7 +12,8 @@ description = (long_description.splitlines())[0]
 BUILD = Path("build")
 DDDURL = "https://lip6.github.io/libDDD/linux.tgz"
 DDDTGZ = BUILD / "libDDD.tar.gz"
-DDDINC = DDDLIB = None
+DDDINC = BUILD / "usr/local/include"
+DDDLIB = BUILD / "usr/local/lib"
 
 BUILD.mkdir(exist_ok=True)
 if not Path(DDDTGZ).exists() :
@@ -25,10 +26,7 @@ with tarfile.open(DDDTGZ) as tar :
 
 class install (_install) :
     def run (self) :
-        global DDDINC, DDDLIB
         base = Path(self.install_base)
-        DDDINC = base / "include"
-        DDDLIB = base / "lib"
         self.copy_tree(str(BUILD / "usr/local/include"),
                        str(base / "include"))
         self.copy_tree(str(BUILD / "usr/local/lib"),
@@ -58,8 +56,7 @@ setup(name="pyddd",
                                        language="c++",
                                        include_dirs = [str(DDDINC)],
                                        #libraries = ["DDD"],
-                                       library_dirs = [str(DDDLIB)],
-                                       runtime_library_dirs = [str(DDDLIB)],
+                                       #library_dirs = [str(DDDLIB)],
                                        extra_objects= [str(DDDLIB / "libDDD.a")],
                                        extra_compile_args=["-std=c++11"],
                                        #extra_link_args=["-Wl,--no-as-needed"]
