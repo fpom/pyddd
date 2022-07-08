@@ -1118,7 +1118,7 @@ cdef class shom :
     def __call__ (shom self, sdd dom) :
         return makesdd(shom_call(self.h, dom.s))
     def __hash__ (shom self) :
-        return int(self.s.hash())
+        return int(self.h.hash())
     cpdef shom fixpoint (shom self) :
         return makeshom(fixpoint(self.h))
     cpdef shom lfp (shom self) :

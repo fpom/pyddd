@@ -4,37 +4,66 @@ from distutils.extension import Extension
 from distutils.command.install import install as _install
 from pathlib import Path
 
-import urllib.request, tarfile
+import tarfile, os, ctypes, ctypes.util
 
-long_description = Path("README.md").read_text(encoding="utf-8")
-description = (long_description.splitlines())[0]
+##
+## untar headers & precompiled lib
+##
 
-BUILD = Path("build")
-DDDURL = "https://lip6.github.io/libDDD/linux.tgz"
-DDDTGZ = BUILD / "libDDD.tar.gz"
-DDDINC = BUILD / "usr/local/include"
-DDDLIB = BUILD / "usr/local/lib"
+BUILD  = "build"
+DDDTGZ = "libDDD.tar.gz"
+DDDINC = f"{BUILD}/include"
 
-BUILD.mkdir(exist_ok=True)
-if not Path(DDDTGZ).exists() :
-    print(f"downloading {DDDURL!r}")
-    with urllib.request.urlopen(DDDURL) as remote, \
-         open(DDDTGZ, "wb") as local :
-        local.write(remote.read())
+Path(BUILD).mkdir(exist_ok=True)
 with tarfile.open(DDDTGZ) as tar :
     tar.extractall(BUILD)
 
+##
+## detect libDDD.so
+##
+
+found = [f"{BUILD}/lib".encode()]
+so_name = ctypes.util.find_library("DDD")
+
+if so_name :
+    class dl_phdr_info (ctypes.Structure) :
+      _fields_ = [('padding0', ctypes.c_void_p),
+                  ('dlpi_name', ctypes. c_char_p)]
+
+    callback_t = ctypes.CFUNCTYPE(ctypes.c_int,
+                                  ctypes.POINTER(dl_phdr_info),
+                                  ctypes.POINTER(ctypes.c_size_t),
+                                  ctypes.c_char_p)
+
+    dl_iterate_phdr = ctypes.CDLL("libc.so.6").dl_iterate_phdr
+    dl_iterate_phdr.argtypes = [callback_t, ctypes.c_char_p]
+    dl_iterate_phdr.restype = ctypes.c_int
+    def callback(info, size, data):
+        if data in info.contents.dlpi_name:
+            found.append(info.contents.dlpi_name)
+        return 0
+    libddd = ctypes.CDLL(so_name)
+    dl_iterate_phdr(callback_t(callback), os.fsencode(so_name))
+
+DDDLIB = str(Path(found[-1].decode()).parent)
+
+print(f"using '{DDDLIB}/{so_name}'")
+
+##
+## setup
+##
+
 class install (_install) :
     def run (self) :
-        base = Path(self.install_base)
-        self.copy_tree(str(BUILD / "usr/local/include"),
-                       str(base / "include"))
-        self.copy_tree(str(BUILD / "usr/local/lib"),
-                       str(base / "lib"))
+        self.copy_tree(f"{BUILD}/include", f"{self.install_base}/include")
+        self.copy_tree(f"{BUILD}/lib", f"{self.install_base}/lib")
         self.mkpath(self.install_lib)
         self.copy_file("dddwrap.h", self.install_lib)
         self.copy_file("ddd.pxd", self.install_lib)
         super().run()
+
+long_description = Path("README.md").read_text(encoding="utf-8")
+description = (long_description.splitlines())[0]
 
 setup(name="pyddd",
       description=description,
@@ -52,12 +81,11 @@ setup(name="pyddd",
       ext_modules=cythonize([Extension("ddd",
                                        ["ddd.pyx"],
                                        language="c++",
-                                       include_dirs = [str(DDDINC)],
-                                       #libraries = ["DDD"],
-                                       #library_dirs = [str(DDDLIB)],
-                                       extra_objects= [str(DDDLIB / "libDDD.a")],
+                                       include_dirs = [DDDINC],
+                                       libraries = ["DDD"],
+                                       library_dirs = [DDDLIB],
                                        extra_compile_args=["-std=c++11"],
-                                       #extra_link_args=["-Wl,--no-as-needed"]
+                                       extra_link_args=[],
       )],
                             language_level=3),
 )
