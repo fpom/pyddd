@@ -93,7 +93,7 @@ setup(name="pyddd",
                                        libraries = ["DDD"],
                                        library_dirs = [DDDLIB],
                                        extra_compile_args=["-std=c++11"],
-                                       extra_link_args=[],
+                                       extra_link_args=["-Wl,--no-as-needed"],
       )],
                             language_level=3),
 )
