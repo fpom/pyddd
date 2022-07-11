@@ -18,34 +18,22 @@ Path(BUILD).mkdir(exist_ok=True)
 with tarfile.open(DDDTGZ) as tar :
     tar.extractall(BUILD)
 
-class install (_install) :
-    def run (self) :
-        self.copy_tree(f"{BUILD}/include", f"{self.install_base}/include")
-        self.copy_tree(f"{BUILD}/lib", f"{self.install_base}/lib")
-        self.mkpath(self.install_lib)
-        self.copy_file("dddwrap.h", self.install_lib)
-        self.copy_file("ddd.pxd", self.install_lib)
-        super().run()
-
-setup(cmdclass={"install" : install})
-
 ##
 ## detect libDDD.so
 ##
 
-found = [f"{BUILD}/lib".encode()]
-so_name = ctypes.util.find_library("DDD")
-
-if so_name :
+def which_ddd () :
+    so_name = ctypes.util.find_library("DDD")
+    if not so_name :
+        return None
+    found = []
     class dl_phdr_info (ctypes.Structure) :
       _fields_ = [('padding0', ctypes.c_void_p),
                   ('dlpi_name', ctypes. c_char_p)]
-
     callback_t = ctypes.CFUNCTYPE(ctypes.c_int,
                                   ctypes.POINTER(dl_phdr_info),
                                   ctypes.POINTER(ctypes.c_size_t),
                                   ctypes.c_char_p)
-
     dl_iterate_phdr = ctypes.CDLL("libc.so.6").dl_iterate_phdr
     dl_iterate_phdr.argtypes = [callback_t, ctypes.c_char_p]
     dl_iterate_phdr.restype = ctypes.c_int
@@ -53,12 +41,33 @@ if so_name :
         if data in info.contents.dlpi_name:
             found.append(info.contents.dlpi_name)
         return 0
-    libddd = ctypes.CDLL(so_name)
+    _ = ctypes.CDLL(so_name)
     dl_iterate_phdr(callback_t(callback), os.fsencode(so_name))
+    if found :
+        return found[0].decode()
+    else :
+        return None
 
-DDDLIB = str(Path(found[-1].decode()).parent)
+DDDPATH = which_ddd()
+if not DDDPATH :
+    class install (_install) :
+        def run (self) :
+            self.copy_tree(f"{BUILD}/include", f"{self.install_base}/include")
+            self.copy_tree(f"{BUILD}/lib", f"{self.install_base}/lib")
+            self.mkpath(self.install_lib)
+            self.copy_file("dddwrap.h", self.install_lib)
+            self.copy_file("ddd.pxd", self.install_lib)
+            super().run()
+    setup(cmdclass={"install" : install})
 
-print(f"### using '{DDDLIB}/{so_name}' ###")
+DDDPATH = which_ddd()
+if not DDDPATH :
+    DDDPATH = f"{BUILD}/lib/libDDD.so"
+    print(f"### libDDD not found, using precompiled {DDDPATH}\n"
+          f"### this will not work until libDDD is properly installed")
+
+DDDLIB = str(Path(DDDPATH).parent)
+print(f"### using '{DDDPATH}' ###")
 
 ##
 ## setup
@@ -79,7 +88,6 @@ setup(name="pyddd",
                    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
                    "Programming Language :: Python :: 3",
                    "Operating System :: OS Independent"],
-#      cmdclass={"install" : install},
       ext_modules=cythonize([Extension("ddd",
                                        ["ddd.pyx"],
                                        language="c++",
