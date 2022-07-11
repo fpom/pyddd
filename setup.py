@@ -74,13 +74,6 @@ print(f"### using '{DDDPATH}' ###")
 long_description = Path("README.md").read_text(encoding="utf-8")
 description = (long_description.splitlines())[0]
 
-class install (_install) :
-    def run (self) :
-        self.mkpath(self.install_lib)
-        self.copy_file("dddwrap.h", self.install_lib)
-        self.copy_file("ddd.pxd", self.install_lib)
-        super().run()
-
 setup(name="pyddd",
       description=description,
       long_description=long_description,
@@ -93,7 +86,6 @@ setup(name="pyddd",
                    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
                    "Programming Language :: Python :: 3",
                    "Operating System :: OS Independent"],
-      cmdclass={"install" : install},
       ext_modules=cythonize([Extension("ddd",
                                        ["ddd.pyx"],
                                        language="c++",
