@@ -7,3 +7,4 @@ ddd.cpp
 Makefile
 .python-version
 pyrightconfig.json
+pyddd.egg-info

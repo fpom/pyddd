@@ -11,16 +11,16 @@ from libcpp.pair cimport pair
 
 cdef extern from "dddwrap.h" namespace "std":
     cdef cppclass ofstream:
-        ofstream ()
-        ofstream (const string &filename)
-        void close ()
-        ofstream& write (const char* s, int n)
+        ofstream()
+        ofstream(const string &filename)
+        void close()
+        ofstream& write(const char* s, int n)
     cdef cppclass ifstream:
-        ifstream ()
-        ifstream (const string &filename)
-        void close ()
-        bool eof ()
-    void getline (ifstream& i, string& s)
+        ifstream()
+        ifstream(const string &filename)
+        void close()
+        bool eof()
+    void getline(ifstream& i, string& s)
 
 _hom_expr = re.compile(r"^\s*(\S+)\s*(=|==|!=|<=|>=|<|>|\+=)\s*(\S+)\s*$", re.I)
 
@@ -32,18 +32,18 @@ cdef extern from "dddwrap.h":
     cdef DDD ddd_new_ONE()
     cdef DDD ddd_new_EMPTY()
     cdef DDD ddd_new_range(int var, val_t val1, val_t val2, const DDD&d)
-    cdef void saveDDD (ofstream &s, vector[DDD] l)
-    cdef void loadDDD (ifstream &s, vector[DDD] &l)
-    cdef DDD ddd_concat (DDD &a, DDD &b)
-    cdef DDD ddd_union (DDD &a, DDD &b)
-    cdef DDD ddd_intersect (DDD &a, DDD &b)
-    cdef DDD ddd_minus (DDD &a, DDD &b)
+    cdef void saveDDD(ofstream &s, vector[DDD] l)
+    cdef void loadDDD(ifstream &s, vector[DDD] &l)
+    cdef DDD ddd_concat(DDD &a, DDD &b)
+    cdef DDD ddd_union(DDD &a, DDD &b)
+    cdef DDD ddd_intersect(DDD &a, DDD &b)
+    cdef DDD ddd_minus(DDD &a, DDD &b)
     ctypedef pair[val_t,DDD] *ddd_iterator
-    cdef ddd_iterator ddd_iterator_begin (DDD d)
-    cdef void ddd_iterator_next (ddd_iterator i)
-    cdef bint ddd_iterator_end (ddd_iterator i, DDD d)
-    cdef DDD ddd_iterator_ddd (ddd_iterator i)
-    cdef val_t ddd_iterator_value (ddd_iterator i)
+    cdef ddd_iterator ddd_iterator_begin(DDD d)
+    cdef void ddd_iterator_next(ddd_iterator i)
+    cdef bint ddd_iterator_end(ddd_iterator i, DDD d)
+    cdef DDD ddd_iterator_ddd(ddd_iterator i)
+    cdef val_t ddd_iterator_value(ddd_iterator i)
     cdef bint ddd_is_STOP(DDD &d)
 
 cdef extern from "ddd/Hom_Basic.hh":
@@ -63,7 +63,7 @@ cdef extern from "ddd/Hom_Basic.hh":
     cdef Hom varGeqVar(int var, int var2)
 
 
-cdef class domain:
+cdef class domain(_domain):
     """`ddd` and `hom` factory
 
     Only the `ddd` and `hom` instances from the same `domain` are compatible
@@ -131,7 +131,7 @@ cdef class domain:
         self.one.d = ddd_new_ONE()
         self.empty.d = ddd_new_EMPTY()
 
-    def __eq__(self, domain other):
+    def __eq__(self, object other):
         """domains equality
 
         Two domains are equal if they have the same variables, in the same
@@ -142,10 +142,14 @@ cdef class domain:
         >>> domain(x=2, y=2) == domain(y=2, x=2)
         False
         """
+        cdef domain oth
+        if not isinstance(other, domain):
+            return False
+        oth = <domain>other
         # don't call ddd.__eq__ as it calls domain.checkd that calls domain.__eq__
-        return self.full.d.set_equal(other.full.d) and self.vars == other.vars
+        return self.full.d.set_equal(oth.full.d) and self.vars == oth.vars
 
-    def __ne__(self, domain other):
+    def __ne__(self, object other):
         "domain inequality"
         return not self.__eq__(other)
 
@@ -386,7 +390,7 @@ cdef class domain:
         return self.op(left, op, right)
 
     cpdef hom const(self, ddd d):
-        """return a contant `hom` that returns `d`
+        """return a constant `hom` that returns `d`
 
         Same as `domain.__call__(":=", ...)` but more general as `d` can be
         a `ddd` that could not be specified as `...`
@@ -595,7 +599,7 @@ cdef class domain:
 ##
 
 
-cdef class edge:
+cdef class edge(_edge):
     """the edge of a `ddd`
 
     Attributes:
@@ -624,18 +628,22 @@ cdef class edge:
     def domain(self):
         return self.succ.f
 
-    def __eq__(self, edge other):
+    def __eq__(self, object other):
         """equality
 
         Two edges are equal if they have the same domain and fields
 
         """
-        return (self.succ.f == other.succ.f
-                and self.var == other.var
-                and self.val == other.val
-                and self.succ == other.succ)
+        cdef edge oth
+        if not isinstance(other, edge):
+            return False
+        oth = <edge>other
+        return (self.succ.f == oth.succ.f
+                and self.var == oth.var
+                and self.val == oth.val
+                and self.succ == oth.succ)
 
-    def __ne__(self, edge other):
+    def __ne__(self, object other):
         "inequality"
         return not self.__eq__(other)
 
@@ -646,7 +654,7 @@ cdef class edge:
         and then the values.
         """
         self.check(other)
-        return self.tuple < other.tuple
+        return self.tuple() < other.tuple()
 
     def __le__(self, edge other):
         """lower than or equal
@@ -655,7 +663,7 @@ cdef class edge:
         and then the values.
         """
         self.check(other)
-        return self.tuple <= other.tuple
+        return self.tuple() <= other.tuple()
 
     def __gt__(self, edge other):
         """strictly greater than
@@ -664,7 +672,7 @@ cdef class edge:
         and then the values.
         """
         self.check(other)
-        return self.tuple > other.tuple
+        return self.tuple() > other.tuple()
 
     def __ge__(self, edge other):
         """greater than or equal
@@ -673,10 +681,10 @@ cdef class edge:
         and then the values.
         """
         self.check(other)
-        return self.tuple >= other.tuple
+        return self.tuple() >= other.tuple()
 
 
-cdef class ddd:
+cdef class ddd(_dd):
     """data-decision-diagram
 
     This class exposes a high-level representation of class `DDD` from
@@ -685,7 +693,7 @@ cdef class ddd:
     and only the `ddd`s from the same domain are compatible with each other.
     """
     def __init__(self):
-        """class `ddd` should never be instanciated directly
+        """class `ddd` should never be instantiated directly
 
         To construct a `ddd` instance, use either:
          - `domain.__call__()` that is the usual method
@@ -865,7 +873,7 @@ cdef class ddd:
         self.f.checkd(other)
         return self.f.makeddd(ddd_minus(self.d, other.d))
 
-    def __eq__(self, ddd other):
+    def __eq__(self, object other):
         """equality
         
         `a == b` iff `a` contains exactly the same valuations as `b` and both
@@ -881,9 +889,13 @@ cdef class ddd:
         >>> dom1(x=0, y=0) == dom1(x=1, y=0)
         False
         """
-        return self.f == other.f and self.d.set_equal(other.d)
+        cdef ddd oth
+        if not isinstance(other, ddd):
+            return False
+        oth = <ddd>other
+        return self.f == oth.f and self.d.set_equal(oth.d)
 
-    def __ne__(self, ddd other):
+    def __ne__(self, object other):
         """inequality
 
         `a != b` iff not `a == b`
@@ -904,7 +916,7 @@ cdef class ddd:
         """
         return (self | other) == other
 
-    def __lt__ (self, ddd other):
+    def __lt__(self, ddd other):
         """strict inclusion
 
         `a < b` iff `a <= b` and `a != b`
@@ -917,7 +929,7 @@ cdef class ddd:
         """
         return self != other and self <= other
 
-    def __ge__ (self, ddd other):
+    def __ge__(self, ddd other):
         """reversed inclusion
 
         `a >= b` iff `b <= a`
@@ -930,7 +942,7 @@ cdef class ddd:
         """
         return (self | other) == self
 
-    def __gt__ (self, ddd other):
+    def __gt__(self, ddd other):
         """reversed strict inclusion
 
         `a > b` iff `b < a`
@@ -1163,7 +1175,7 @@ cdef extern from "dddwrap.h":
     cdef Hom fixpoint(const Hom &h)
 
 
-cdef class hom :
+cdef class hom(_hom):
     """homomorphisms on a `ddd`
 
     This class exposes a high-level representation of class `Hom` from `libDDD`.
@@ -1171,7 +1183,7 @@ cdef class hom :
     `ddd`s and `hom`s from the same domain are compatible with each other.
     """
     def __init__(self):
-        """class `hom` should never be instanciated directly
+        """class `hom` should never be instantiated directly
 
         To construct a `hom` instance, use either:
          - `domain.__call__()` that is the usual method
@@ -1188,20 +1200,24 @@ cdef class hom :
         "hash of a `hom`"
         return int(self.h.hash())
 
-    def __eq__(self, hom other):
+    def __eq__(self, object other):
         """equality of two `hom`
 
         Two `hom` instances are equal if they are the same operation and are
         both from the same domain.
         """
-        return self.f == other.f and hom_eq(self.h, other.h)
+        cdef hom oth
+        if not isinstance(other, hom):
+            return False
+        oth = <hom>other
+        return self.f == oth.f and hom_eq(self.h, oth.h)
 
-    def __ne__(self, hom other):
+    def __ne__(self, object other):
         """inequality
 
         `a != b` iff not `a == b`
         """
-        return self.f == other.f and hom_ne(self.h, other.h)
+        return not self.__eq__(other)
 
     def __invert__(self):
         """negation of a selector `hom`
@@ -1356,7 +1372,7 @@ cdef class hom :
         """
         return (self | self.f.id).fixpoint()
 
-    cpdef hom gfp (self):
+    cpdef hom gfp(self):
         """greatest fixpoint homomorphism
 
         This is `(h & id).fixpoint()`, where `id` is the identity homomorphism,
@@ -1370,7 +1386,7 @@ cdef class hom :
         """
         return (self & self.f.id).fixpoint()
 
-    cpdef hom invert (self, ddd potential=None):
+    cpdef hom invert(self, ddd potential=None):
         """predecessor homomorphism
 
         If `h(d1)` == d2` then `h.invert()(d2) == d1`, where `d1` is included
@@ -1393,7 +1409,7 @@ cdef class hom :
         return self.f.makehom(self.h.invert(p))
 
     cpdef bint is_selector(self):
-        """chech whether teh homomorphism is a selector
+        """check whether the homomorphism is a selector
 
         A selector is a homomorphism that only selects paths of a `ddd` but
         does not change the valuations and does not add paths.
@@ -1420,3 +1436,113 @@ cdef class hom :
         0
         """
         return self & self.f.full
+
+
+##
+## hierarchical domains
+##
+
+cdef extern from "dddwrap.h" :
+    cdef SDD sdd_new_SDDs(int var, const SDD &val, const SDD &s)
+    cdef SDD sdd_new_SDDd(int var, const DDD &val, const SDD &s)
+    cdef const SDD sdd_ONE
+    cdef SDD sdd_new_ONE()
+    cdef SDD sdd_new_EMPTY()
+    cdef SDD sdd_new_TOP()
+    cdef bint sdd_is_STOP(SDD &s)
+    cdef bint sdd_is_ONE(SDD &s)
+    cdef bint sdd_is_NULL(SDD &s)
+    cdef bint sdd_is_TOP(SDD &s)
+    cdef SDD sdd_concat(SDD &a, SDD &b)
+    cdef SDD sdd_union(SDD &a, SDD &b)
+    cdef SDD sdd_intersect(SDD &a, SDD &b)
+    cdef SDD sdd_minus(SDD &a, SDD &b)
+    cdef bint sdd_eq(SDD &a, SDD &b)
+    cdef bint sdd_ne(SDD &a, SDD &b)
+
+cdef class sdomain(_domain):
+    def __cinit__(self, **doms):
+        self.vmap = {}
+        self.ddoms = {}
+        self.vars = tuple(doms)
+        self.depth = len(self.vars)
+        self.full = sdd.__new__(sdd)
+        self.one = sdd.__new__(sdd)
+        self.empty = sdd.__new__(sdd)
+        self.id = shom.__new__(shom)
+        self.full.f = self.one.f = self.empty.f = self.id.f = self
+        self.id.h = Shom()
+
+    def __init__(self, **doms):
+        cdef int rank
+        cdef str name
+        cdef object dom
+        cdef sdd tmp
+        for rank, (name, dom) in doms.items():
+            if not isinstance(dom, _domain):
+                raise TypeError(f"expected 'domain' or 'sdomain' object but got"
+                                f" '{dom.__class__.__name__}'")
+            self.vmap[name] = rank
+            self.vmap[rank] = name
+            self.sdom[name] = self.sdom[rank] = dom
+        tmp = self()
+        self.full.s = tmp.s
+        self.one.s = sdd_new_EMPTY()
+        self.empty.s = sdd_new_ONE()
+
+    def __eq__(self, object other):
+        cdef int r
+        cdef sdomain oth
+        if not isinstance(other, sdomain):
+            return False
+        oth = <sdomain>other
+        return (self.vars == oth.vars
+                and all(self.sdom[r] == oth.sdom[r]
+                        for r in range(self.depth)))
+
+    def __ne__(self, object other):
+        return not self.__eq__(other)
+
+    @property
+    def doms(self):
+        return {v: self.sdoms[v].doms for v in self.vars}
+
+    cdef inline void checks(self, sdd s):
+        if s.f != self:
+            raise ValueError("not same domains")
+
+    cdef inline void checkh(self, shom h):
+        if h.f != self:
+            raise ValueError("not same domains")
+
+    cdef inline sdd makesdd(self, SDD s):
+        cdef sdd obj = sdd.__new__(sdd)
+        obj.f = self
+        obj.s = s
+        return obj
+
+    cdef inline shom makeshom(self, Shom h):
+        cdef shom obj = shom.__new__(shom)
+        obj.f = self
+        obj.h = h
+        return obj
+
+    def __call__(self, **values):
+        cdef SDD s = sdd_new_ONE()
+        cdef int r
+        cdef str n
+        cdef object dom
+        for r in reversed(range(self.depth)):
+            n = self.vmap[r]
+            dom = self.sdom[r]
+            if isinstance(dom, domain):
+                if n in values:
+                    s = sdd_new_SDDd(r, (<ddd>(values[n])).d, s)
+                else:
+                    s = sdd_new_SDDd(r, (<domain>dom).full.d, s)
+            else:
+                if n in values:
+                    s = sdd_new_SDDs(r, (<sdd>(values[n])).s, s)
+                else:
+                    s = sdd_new_SDDs(r, (<sdomain>dom).full.s, s)
+        return self.makesdd(s)
