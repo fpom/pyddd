@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools", "wheel", "cython"]
+
+[project]
+name = "pyddd"
+version = "0.1"
+authors = [
+  { name = "Franck Pommereau", email = "franck.pommereau@univ-evry.fr" },
+]
+description = "Python binding to libDDD"
+readme = "README.md"
+requires-python = ">= 3.9"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/fpom/pyddd"
+"Bug Tracker" = "https://github.com/fpom/pyddd/issues"
