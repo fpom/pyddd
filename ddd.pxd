@@ -72,7 +72,7 @@ cdef class hom(_hom):
     cpdef hom lfp(self)
     cpdef hom gfp(self)
     cpdef hom invert(self, ddd potential=*)
-    cpdef bint is_selector(self)
+    cdef bint is_selector(self)
     cpdef hom clip(self)
 
 cdef class sdomain(_domain):
@@ -116,7 +116,16 @@ cdef extern from "ddd/SHom.h":
         Shom(const Shom &h)
         Shom fixpoint()
         size_t hash() const
+        bint is_selector()
+        Shom invert(const SDD &p)
 
 cdef class shom(_hom):
     cdef sdomain f
     cdef Shom h
+    cdef bint is_selector(self)
+    cpdef ite(self, shom then, shom orelse=*)
+    cpdef shom fixpoint(self)
+    cpdef shom lfp(self)
+    cpdef shom gfp(self)
+    cpdef shom invert(self, sdd potential=*)
+    cpdef shom clip(self)

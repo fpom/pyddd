@@ -296,13 +296,13 @@ cdef class domain(_domain):
         serve as conditions.
 
         >>> dom = domain(x=2, y=2)
-        >>> dom.id.is_selector()
+        >>> dom.id.selector
         True
-        >>> dom.const(x=0, y=0).is_selector()
+        >>> dom.const(x=0, y=0).selector
         False
-        >>> dom.op("x < y").is_selector()
+        >>> dom.op("x < y").selector
         True
-        >>> dom.op("x += 1").is_selector()
+        >>> dom.op("x += 1").selector
         False
 
         Note also that in cases 2 and 3, when `y` is a variable, we use an 
@@ -1220,6 +1220,18 @@ cdef class hom(_hom):
         """
         return not self.__eq__(other)
 
+    cdef bint is_selector(self):
+        """check whether the homomorphism is a selector
+
+        A selector is a homomorphism that only selects paths of a `ddd` but
+        does not change the valuations and does not add paths.
+        """
+        return self.h.is_selector()
+
+    @property
+    def selector(self):
+        return self.is_selector()
+
     def __invert__(self):
         """negation of a selector `hom`
 
@@ -1302,7 +1314,7 @@ cdef class hom(_hom):
         elif isinstance(other, hom):
             h = <hom>other
             self.f.checkh(h)
-            if not other.is_selector():
+            if not h.is_selector():
                 raise ValueError("not a selector")
             return self.f.makehom(hom_intersect_Hom_Hom(self.h, h.h))
         else:
@@ -1348,7 +1360,7 @@ cdef class hom(_hom):
             self.f.checkh(orelse)
             return self.f.makehom(hom_ITE(self.h, then.h, orelse.h))
 
-    cpdef hom fixpoint (self):
+    cpdef hom fixpoint(self):
         """fixpoint homomorphism
 
         `h.fixpoint(d)` is equivalent to compute `d = h(d)` until a fixpoint is
@@ -1359,7 +1371,7 @@ cdef class hom(_hom):
         """
         return self.f.makehom(fixpoint(self.h))
 
-    cpdef hom lfp (self):
+    cpdef hom lfp(self):
         """least fixpoint homomorphism
 
         This is `(h | id).fixpoint()`, where `id` is the identity homomorphism,
@@ -1402,20 +1414,12 @@ cdef class hom(_hom):
         True
         """
         cdef DDD p
-        if potential is not None:
+        if potential is None:
+            p = self.f.full.d
+        else:
             self.f.checkd(potential)
             p = potential.d
-        else:
-            p = self.f.full.d
         return self.f.makehom(self.h.invert(p))
-
-    cpdef bint is_selector(self):
-        """check whether the homomorphism is a selector
-
-        A selector is a homomorphism that only selects paths of a `ddd` but
-        does not change the valuations and does not add paths.
-        """
-        return self.h.is_selector()
 
     cpdef hom clip(self):
         """restriction tho the domain
@@ -1492,6 +1496,7 @@ cdef extern from "dddwrap.h" :
     cdef Shom shom_minus_Shom_Shom(const Shom &a, const Shom &b)
     cdef Shom shom_invert(const Shom &s, const SDD &d)
     cdef Shom fixpoint(const Shom &s)
+    cdef Shom shom_ITE(Shom a, Shom b, Shom c)
 
 
 cdef class sdomain(_domain):
@@ -2164,5 +2169,105 @@ cdef class shom:
     def __init__(self):
         raise TypeError("class 'shom' should not be instantiated directly")
 
+    @property
+    def domain(self):
+        return self.f
+
+    def __hash__(self):
+        return int(self.h.hash())
+
+    def __eq__(self, object other):
+        cdef shom oth
+        if not isinstance(other, shom):
+            return False
+        oth = <shom>other
+        return self.f == oth.f and shom_eq(self.h, oth.h)
+
+    def __ne__(self, object other):
+        return not self.__eq__(other)
+
+    cdef bint is_selector(self):
+        return self.h.is_selector()
+
+    @property
+    def selector(self):
+        return self.is_selector()
+
+    def __invert__(self):
+        if not self.is_selector():
+            raise ValueError("not a selector")
+        return self.f.makeshom(shom_neg(self.h))
+
     def __call__(self, sdd s):
         return self.f.makesdd(shom_call(self.h, s.s))
+
+    def __or__(self, shom other):
+        self.f.checkh(other)
+        return self.f.makeshom(shom_union(self.h, other.h))
+
+    def __mul__(self, shom other):
+        self.f.checkh(other)
+        return self.f.makeshom(shom_circ(self.h, other.h))
+
+    def __and__(self, object other):
+        cdef sdd s
+        cdef shom h
+        if isinstance(other, sdd):
+            s = <sdd>other
+            self.f.checks(s)
+            return self.f.makeshom(shom_intersect_Shom_SDD(self.h, s.s))
+        elif isinstance(other, shom):
+            h = <shom>other
+            self.f.checkh(h)
+            if not h.is_selector():
+                raise ValueError("not a selector")
+            return self.f.makeshom(shom_intersect_Shom_Shom(self.h, h.h))
+        else:
+            raise TypeError(f"expected 'shom' or 'sdd' object but got"
+                            f" '{other.__class__.__name__}'")
+
+    def __sub__(self, object other):
+        cdef sdd s
+        cdef shom h
+        if isinstance(other, sdd):
+            s = <sdd>other
+            self.f.checks(s)
+            return self.f.makeshom(shom_minus_Shom_SDD(self.h, s.s))
+        elif isinstance(other, shom):
+            h = <shom>other
+            self.f.checkh(h)
+            return self.f.makeshom(shom_minus_Shom_Shom(self.h, h.h))
+        else:
+            raise TypeError(f"expected 'shom' or 'sdd' object but got"
+                            f" '{other.__class__.__name__}'")
+
+    cpdef ite(self, shom then, shom orelse=None):
+        if not self.is_selector():
+            raise ValueError("not a selector")
+        self.f.checkh(then)
+        if orelse is None:
+            return self.f.makeshom(shom_ITE(self.h, then.h, self.f.id.h))
+        else:
+            self.f.checkh(orelse)
+            return self.f.makeshom(shom_ITE(self.h, then.h, orelse.h))
+
+    cpdef shom fixpoint(self):
+        return self.f.makeshom(fixpoint(self.h))
+
+    cpdef shom lfp(self):
+        return (self | self.f.id).fixpoint()
+
+    cpdef shom gfp(self):
+        return (self & self.f.id).fixpoint()
+
+    cpdef shom invert(self, sdd potential=None):
+        cdef SDD p
+        if potential is None:
+            p = self.f.full.s
+        else:
+            self.f.checks(potential)
+            p = potential.s
+        return self.f.makeshom(self.h.invert(p))
+
+    cpdef shom clip(self):
+        return self & self.f.full

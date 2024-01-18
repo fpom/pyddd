@@ -76,3 +76,4 @@
 #define shom_minus_Shom_SDD(a,b) (a - b)
 #define shom_minus_Shom_Shom(a,b) (a - b)
 #define shom_invert(s,d) s.invert(d)
+#define shom_ITE(a,b,c) ITE(a, b, c)
