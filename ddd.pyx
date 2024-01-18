@@ -2109,12 +2109,19 @@ cdef class sdd(_dd):
                         yield {e.var: v} | s
 
     def domains(self, dict doms=None):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s = ab(a=xy(x=0), b=uv(u=1))
+        >>> s.domains() == {'a': {'x': {0}, 'y': {0, 1}}, 'b': {'u': {1}, 'v': {0, 1}}}
+        True
+        """
         cdef sedge e
         if doms is None:
             doms = {}
-        doms.setdefault(self.head, self.ddoms[self.head].empty)
         for e in self:
-            doms[e.var] = doms[e.var] | e.val
+            doms[e.var] = e.val.domains()
             e.succ.domains(doms)
         return doms
 
