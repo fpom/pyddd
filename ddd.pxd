@@ -40,10 +40,6 @@ cdef class domain(_domain):
     cdef inline hom makehom(self, Hom h)
     cdef inline void checkd(self, ddd d)
     cdef inline void checkh(self, hom h)
-    cdef ddd _call_ddd(self, dict values)
-    cdef hom _call_hom(self, str op)
-    cpdef hom const(self, ddd d)
-    cpdef hom op(self, str left, str op, object right)
     cdef Hom _hom_ass(self, int tgt, int src)
     cdef Hom _hom_inc(self, int tgt, int src)
 
@@ -101,9 +97,17 @@ cdef extern from "ddd/SDD.h":
         size_t set_hash() const
         int variable() const
 
+cdef class sedge(_edge):
+    cdef public str var
+    cdef public _dd val
+    cdef public sdd succ
+    cdef inline tuple tuple(self)
+    cdef inline void check(self, sedge other)
+
 cdef class sdd(_dd):
     cdef sdomain f
     cdef SDD s
+    cdef SDD _pick(self, SDD s)
 
 cdef extern from "ddd/SHom.h":
     cdef cppclass Shom:

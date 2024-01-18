@@ -206,45 +206,14 @@ cdef class domain(_domain):
         obj.h = h
         return obj
 
-    def __call__(self, *largs, **values):
-        """create a `ddd` or a `hom` instance
+    def __call__(self, **values):
+        """create a `ddd` instance
 
-        If called with a positional argument, it builds a `hom`, otherwise
-        it expects a valuation given as the keywords arguments to build a `ddd`.
-
-        Possible calls are:
+        It expects a valuation given as the keywords arguments to build a `ddd`:
 
          1. No arguments: return a `ddd` with all possible valuations
-         2. `"id"`: return the identity `hom`
-         3. `var=values, ...`: return a `ddd` with the variables ranging over the
+         2. `var=values, ...`: return a `ddd` with the variables ranging over the
             provided values (iterables)
-         4. `":=", var=values, ...`: return a constant `hom` that always returns
-            the `ddd` specified as previously
-         5. `"x OP y"`: return a `hom` that computes the given operation, where
-            `x` is a variable and `y` is a variable or a value and `OP` is the
-            operation to implement:
-           a. If `OP` is one of `==`, `!=`, `<=`, `>=`, `<`, `>`, the resulting
-              `hom` selects the subset of valuations where `x OP y`. The returned
-              `hom` is a selector.
-           b. If `OP` is `=`, the resulting `hom` assigns `y` to `x`
-           c. If `OP` is `+=`, the resulting `hom` increments `x` by `y`
-
-        As noted above, only the identity `hom` and those constructed with
-        comparison operators (case 5.a) are selectors and are suitable to
-        serve as conditions.
-
-        >>> dom = domain(x=2, y=2)
-        >>> dom("id").is_selector()
-        True
-        >>> dom(":=", x=0, y=0).is_selector()
-        False
-        >>> dom("x < y").is_selector()
-        True
-        >>> dom("x += 1").is_selector()
-        False
-
-        Note also that in cases 5.b and 5.c, when `y` is a variable, we use an 
-        inefficient construct that may even fail if the domain of `y` is large.
 
         When creating `ddd`, the variables that are not valuated are considered
         to range over all their full domains. The returned `ddd` is the
@@ -254,102 +223,7 @@ cdef class domain(_domain):
         >>> d = dom(x=0, y=(1,2))
         >>> d == dom(x=0, y=1, z={0, 1}) | dom(x=0, y=2, z={0, 1})
         True
-        >>> h = dom("x += 1")
-        >>> h(d) == dom(x=1, y=1, z={0, 1}) | dom(x=1, y=2, z={0, 1})
-        True
-
-        Selector homomorphisms always return a subset of their arguments as
-        they only filter the paths in it.
-
-        >>> dom = domain(x=2, y=2)
-        >>> h = dom("x == 0")
-        >>> h(dom.full) == dom(x=0, y={0, 1}) 
-        True
-        >>> h = dom("x != 1")
-        >>> h(dom.full) == dom(x=0, y={0, 1})
-        True
-        >>> h = dom("x < 1")
-        >>> h(dom.full) == dom(x=0, y={0, 1})  #3
-        True
-        >>> h = dom("x <= 0")
-        >>> h(dom.full) == dom(x=0, y={0, 1})
-        True
-        >>> h = dom("x > 0")
-        >>> h(dom.full) == dom(x=1, y={0, 1})
-        True
-        >>> h = dom("x >= 1")
-        >>> h(dom.full) == dom(x=1, y={0, 1})
-        True
-        >>> h = dom("x == y")
-        >>> h(dom.full) == dom(x=0, y=0) | dom(x=1, y=1)
-        True
-        >>> h = dom("x != y")
-        >>> h(dom.full) == dom(x=0, y=1) | dom(x=1, y=0)
-        True
-        >>> h = dom("x < y")
-        >>> h(dom.full) == dom(x=0, y=1)
-        True
-        >>> h = dom("x <= y")
-        >>> h(dom.full) == dom(x=0, y={0, 1}) | dom(x=1, y=1)
-        True
-        >>> h = dom("x > y")
-        >>> h(dom.full) == dom(x=1, y=0)
-        True
-        >>> h = dom("x >= y")
-        >>> h(dom.full) == dom(x=1, y={0, 1}) | dom(x=0, y=0)
-        True
-
-        Other homomorphisms assign variables and thus may return valuations
-        that do not exist in their argument. They may even return valuations
-        that are not in the domain (see `hom.clip()` to solve this).
-
-        >>> dom = domain(x=2, y=2)
-        >>> h = dom("x = 1")
-        >>> h(dom(x=0, y={0, 1})) == dom(x=1, y={0, 1})
-        True
-        >>> h = dom("x += 1")
-        >>> d = h(dom.full)
-        >>> values = list(d.values())
-        >>> len(values)
-        4
-        >>> for i in [1, 2]:
-        ...     for j in [0, 1]:
-        ...         assert dict(x=i, y=j) in values
-        >>> h = dom("x = y")
-        >>> h(dom.full) == dom(x=0, y=0) | dom(x=1, y=1)
-        True
-        >>> h = dom("x += y")
-        >>> d = h(dom.full)
-        >>> values = list(d.values())
-        >>> len(values)
-        4
-        >>> assert {'x': 0, 'y': 0} in values
-        >>> assert {'x': 1, 'y': 0} in values
-        >>> assert {'x': 1, 'y': 1} in values
-        >>> assert {'x': 2, 'y': 1} in values
-        >>> h = dom(":=", x=0, y=0)
-        >>> h(dom.full) == dom(x=0, y=0)
-        True
         """
-        if (a := len(largs)) == 0:
-            expr = None
-        elif a == 1:
-            expr = largs[0]
-        else:
-            raise TypeError("expected at most one positional argument")
-        if expr is None:
-            return self._call_ddd(values)
-        elif expr == ":=":
-            return self.const(self._call_ddd(values))
-        elif expr == "id" and not values:
-            return self.id
-        elif expr and not values:
-            return self._call_hom(expr)
-        else:
-            raise TypeError("invalid arguments")
-
-    cdef ddd _call_ddd(self, dict values):
-        "auxiliary method for `__call__`"
         cdef str n
         cdef int r, i
         cdef val_t v
@@ -377,84 +251,208 @@ cdef class domain(_domain):
                 d = ddd_concat(t.d, d)
         return self.makeddd(d)
 
-    cdef hom _call_hom(self, str expr):
-        "auxiliary method for `__call__`"
-        match = _hom_expr.match(expr)
-        if not match:
-            raise ValueError(f"invalid 'hom' expression '{expr}'")
-        left, op, right = match.groups()
-        try:
-            right = int(right)
-        except ValueError:
-            pass
-        return self.op(left, op, right)
-
-    cpdef hom const(self, ddd d):
+    def const(self, ddd vals=None, **values):
         """return a constant `hom` that returns `d`
+        
+        Expects either a single positional argument that must be a `ddd`, or
+        keywords arguments that are passed to `__call__` to produce a `ddd`.
 
-        Same as `domain.__call__(":=", ...)` but more general as `d` can be
-        a `ddd` that could not be specified as `...`
+        >>> dom = domain(x=2, y=2)
+        >>> h = dom.const(x=0, y=0)
+        >>> h(dom.full) == dom(x=0, y=0)
+        True
+        >>> dom.const(dom(x=0, y=0)) == h
+        True
         """
+        cdef ddd d
+        if vals is None:
+            d = self(**values)
+        elif values:
+            raise TypeError("expected no keywords arguments when a positional"
+                            " argument has been supplied")
+        else:
+            d = vals
         return self.makehom(Hom(d.d))
 
-    cpdef hom op(self, str left, str op, object right):
-        """return a `hom` that implements an operation
+    def op(self, *args):
+        """create a `hom` instance
 
-        Same as `domain.__call__("left op right")` but does not need parsing
+        Possible calls are:
+         - `domain.op("x OP y")`
+         - `domain.op("x", "OP", "y")` where `y` is a variable name
+         - `domain.op("x", "OP", y)` where `y` is an `int`
+
+        Return a `hom` that computes the given operation, where `OP` is the
+        operation to implement:
+
+         1. If `OP` is one of `==`, `!=`, `<=`, `>=`, `<`, `>`, the resulting
+            `hom` selects the subset of valuations where `x OP y`. The returned
+            `hom` is a selector.
+         2. If `OP` is `=`, the resulting `hom` assigns `y` to `x`
+         3. If `OP` is `+=`, the resulting `hom` increments `x` by `y`
+
+        As noted above, only the identity `hom` and those constructed with
+        comparison operators (case 1) are selectors and are suitable to
+        serve as conditions.
+
+        >>> dom = domain(x=2, y=2)
+        >>> dom.id.is_selector()
+        True
+        >>> dom.const(x=0, y=0).is_selector()
+        False
+        >>> dom.op("x < y").is_selector()
+        True
+        >>> dom.op("x += 1").is_selector()
+        False
+
+        Note also that in cases 2 and 3, when `y` is a variable, we use an 
+        inefficient construct that may even fail if the domain of `y` is large.
+
+        Selector homomorphisms always return a subset of their arguments as
+        they only filter the paths in it.
+
+        >>> dom = domain(x=2, y=2)
+        >>> h = dom.op("x == 0")
+        >>> h(dom.full) == dom(x=0, y={0, 1}) 
+        True
+        >>> h = dom.op("x != 1")
+        >>> h(dom.full) == dom(x=0, y={0, 1})
+        True
+        >>> h = dom.op("x < 1")
+        >>> h(dom.full) == dom(x=0, y={0, 1})  #3
+        True
+        >>> h = dom.op("x <= 0")
+        >>> h(dom.full) == dom(x=0, y={0, 1})
+        True
+        >>> h = dom.op("x > 0")
+        >>> h(dom.full) == dom(x=1, y={0, 1})
+        True
+        >>> h = dom.op("x >= 1")
+        >>> h(dom.full) == dom(x=1, y={0, 1})
+        True
+        >>> h = dom.op("x == y")
+        >>> h(dom.full) == dom(x=0, y=0) | dom(x=1, y=1)
+        True
+        >>> h = dom.op("x != y")
+        >>> h(dom.full) == dom(x=0, y=1) | dom(x=1, y=0)
+        True
+        >>> h = dom.op("x < y")
+        >>> h(dom.full) == dom(x=0, y=1)
+        True
+        >>> h = dom.op("x <= y")
+        >>> h(dom.full) == dom(x=0, y={0, 1}) | dom(x=1, y=1)
+        True
+        >>> h = dom.op("x > y")
+        >>> h(dom.full) == dom(x=1, y=0)
+        True
+        >>> h = dom.op("x >= y")
+        >>> h(dom.full) == dom(x=1, y={0, 1}) | dom(x=0, y=0)
+        True
+
+        Other homomorphisms assign variables and thus may return valuations
+        that do not exist in their argument. They may even return valuations
+        that are not in the domain (see `hom.clip()` to solve this).
+
+        >>> dom = domain(x=2, y=2)
+        >>> h = dom.op("x = 1")
+        >>> h(dom(x=0, y={0, 1})) == dom(x=1, y={0, 1})
+        True
+        >>> h = dom.op("x += 1")
+        >>> d = h(dom.full)
+        >>> values = list(d.values())
+        >>> len(values)
+        4
+        >>> for i in [1, 2]:
+        ...     for j in [0, 1]:
+        ...         assert dict(x=i, y=j) in values
+        >>> h = dom.op("x = y")
+        >>> h(dom.full) == dom(x=0, y=0) | dom(x=1, y=1)
+        True
+        >>> h = dom.op("x += y")
+        >>> d = h(dom.full)
+        >>> values = list(d.values())
+        >>> len(values)
+        4
+        >>> assert {'x': 0, 'y': 0} in values
+        >>> assert {'x': 1, 'y': 0} in values
+        >>> assert {'x': 1, 'y': 1} in values
+        >>> assert {'x': 2, 'y': 1} in values
         """
-        cdef int i
         cdef Hom r
         cdef int var
+        cdef str left, op
+        cdef object right
+        cdef int rint = 0   # suppress warnings about non-initialized variable
+        cdef str rstr = ""  # idem
+        cdef bint isint = False
+        # read args
+        if len(args) == 1:
+            match = _hom_expr.match(args[0])
+            if not match:
+                raise ValueError(f"invalid 'hom' expression '{args[0]}'")
+            left, op, right = match.groups()
+        elif len(args) == 3:
+            left, op, right = args
+        else:
+            raise TypeError(f"expected one or three arguments, got {len(args)}")
+        if isinstance(right, int):
+            rint = right
+            isint = True
+        else:
+            try:
+                rint = int(right)
+                isint = True
+            except ValueError:
+                rstr = right
+        # process
         try:
             var = self.vmap[left]
         except KeyError:
             raise ValueError(f"unknown variable {left}")
-        if isinstance(right, int):
-            i = right
+        if isint:
+            # var op int
             if op == "==":
-                r = varEqState(var, i)
+                r = varEqState(var, rint)
             elif op == "!=":
-                r = varNeqState(var, i)
+                r = varNeqState(var, rint)
             elif op == ">":
-                r = varGtState(var, i)
+                r = varGtState(var, rint)
             elif op == "<":
-                r = varLtState(var, i)
+                r = varLtState(var, rint)
             elif op == "<=":
-                r = varLeqState(var, i)
+                r = varLeqState(var, rint)
             elif op == ">=":
-                r = varGeqState(var, i)
+                r = varGeqState(var, rint)
             elif op == "=":
-                r = setVarConst(var, i)
+                r = setVarConst(var, rint)
             elif op == "+=":
-                r = incVar(var, i)
-            else:
-                raise ValueError(f"unsupported operator '{op}'")
-        elif isinstance(right, str):
-            try:
-                i = self.vmap[right]
-            except KeyError:
-                raise ValueError(f"unknown variable {left}")
-            if op == "==":
-                r = varEqVar(var, i)
-            elif op == "!=":
-                r = varNeqVar(var, i)
-            elif op == ">":
-                r = varGtVar(var, i)
-            elif op == "<":
-                r = varLtVar(var, i)
-            elif op == "<=":
-                r = varLeqVar(var, i)
-            elif op == ">=":
-                r = varGeqVar(var, i)
-            elif op == "=":
-                r = self._hom_ass(var, i)
-            elif op == "+=":
-                r = self._hom_inc(var, i)
+                r = incVar(var, rint)
             else:
                 raise ValueError(f"unsupported operator '{op}'")
         else:
-            raise TypeError(f"expected 'str' or 'int' but got"
-                            f" {right.__class__.__name__}")
+            # var op var
+            try:
+                rint = self.vmap[rstr]
+            except KeyError:
+                raise ValueError(f"unknown variable {right}")
+            if op == "==":
+                r = varEqVar(var, rint)
+            elif op == "!=":
+                r = varNeqVar(var, rint)
+            elif op == ">":
+                r = varGtVar(var, rint)
+            elif op == "<":
+                r = varLtVar(var, rint)
+            elif op == "<=":
+                r = varLeqVar(var, rint)
+            elif op == ">=":
+                r = varGeqVar(var, rint)
+            elif op == "=":
+                r = self._hom_ass(var, rint)
+            elif op == "+=":
+                r = self._hom_inc(var, rint)
+            else:
+                raise ValueError(f"unsupported operator '{op}'")
         return self.makehom(r)
 
     cdef Hom _hom_ass(self, int tgt, int src):
@@ -1116,12 +1114,14 @@ cdef class ddd(_dd):
             e.succ.domains(doms)
         return doms
 
-    def _dot(self, out, nid, node):
+    def _dot(self, out, nid, node, parent=None):
         nid[node] = len(nid)
         if node.stop:
             out.write(f'    "n{nid[node]}" [shape=square, label="1"];\n')
-        else:
+        elif parent is None:
             out.write(f'    "n{nid[node]}" [label="{node.head}"];\n')
+        else:
+            out.write(f'    "n{nid[node]}" [label="{node.head}@{parent}"];\n')
         edges = defaultdict(set)
         for e in node:
             if e.succ not in nid:
@@ -1186,8 +1186,9 @@ cdef class hom(_hom):
         """class `hom` should never be instantiated directly
 
         To construct a `hom` instance, use either:
-         - `domain.__call__()` that is the usual method
-         - `domain.id`, `domain.const()`, or `domain.op()`
+         - `domain.id`
+         - `domain.const()`
+         - `domain.op()`
         """
         raise TypeError("class 'hom' should not be instantiated directly")
 
@@ -1225,7 +1226,7 @@ cdef class hom(_hom):
         `(~h)(d) == d - h(d)`
 
         >>> dom = domain(x=2, y=2)
-        >>> h = dom("x == 0")
+        >>> h = dom.op("x == 0")
         >>> (~h)(dom.full) == dom(x=1, y={0, 1})
         True
         """
@@ -1237,7 +1238,7 @@ cdef class hom(_hom):
         """application onto a `ddd`
 
         >>> dom = domain(x=2, y=2)
-        >>> h = dom("x == 0")
+        >>> h = dom.op("x == 0")
         >>> h(dom.full) == dom(x=0, y={0, 1})
         True
 
@@ -1252,7 +1253,7 @@ cdef class hom(_hom):
         `(h1 | h2)(d) == h1(d) | h2(d)`
 
         >>> dom = domain(x=2, y=2)
-        >>> h = dom("x == 0") | dom("y == 0")
+        >>> h = dom.op("x == 0") | dom.op("y == 0")
         >>> h(dom.full) == dom.full - dom(x=1, y=1)
         True
         """
@@ -1265,7 +1266,7 @@ cdef class hom(_hom):
         `(h1 * h2)(d) == h1(h2(d))`
 
         >>> dom = domain(x=2, y=2)
-        >>> h = dom("x += 1") * dom("x == 0")  # select x==0, then do x += 1
+        >>> h = dom.op("x += 1") * dom.op("x == 0")  # select x==0, then do x += 1
         >>> h(dom.full) == dom(x=1, y={0, 1})
         True
         """
@@ -1279,7 +1280,7 @@ cdef class hom(_hom):
         `(h1 & h2)(d) == h1(d) & h2(d)`
 
         >>> dom = domain(x=2, y=2)
-        >>> h = dom("x += 1")
+        >>> h = dom.op("x += 1")
         >>> d = h(dom.full)
         >>> values = list(d.values())
         >>> assert len(values) == 4
@@ -1289,7 +1290,7 @@ cdef class hom(_hom):
         >>> assert {"x": 2, "y": 1} in values
         >>> (h & dom.full)(dom.full) == dom(x=1, y={0, 1})
         True
-        >>> (h & dom("x <= 1"))(dom.full) == dom(x=1, y={0, 1})
+        >>> (h & dom.op("x <= 1"))(dom.full) == dom(x=1, y={0, 1})
         True
         """
         cdef ddd d
@@ -1315,7 +1316,7 @@ cdef class hom(_hom):
 
         >>> dom = domain(x=2, y=2)
         >>> d = dom(x=1, y=1)
-        >>> h = dom("x += 1") * dom("x == 0")
+        >>> h = dom.op("x += 1") * dom.op("x == 0")
         >>> (h - d)(dom.full) == dom(x=1, y=0)
         True
         """
@@ -1329,12 +1330,12 @@ cdef class hom(_hom):
         `h2(d)`. If `h2` is omitted, it is replaced with the identity `hom`
         
         >>> dom = domain(x=2, y=2)
-        >>> cond = dom("x == 0")
-        >>> then = dom("x += 1")
+        >>> cond = dom.op("x == 0")
+        >>> then = dom.op("x += 1")
         >>> h = cond.ite(then)
         >>> h(dom.full) == dom(x=1, y={0, 1})
         True
-        >>> h = cond.ite(then, dom(":=", x=0, y=0))
+        >>> h = cond.ite(then, dom.const(x=0, y=0))
         >>> h(dom.full) == dom(x=1, y={0, 1}) | dom(x=0, y=0)
         True
         """
@@ -1366,7 +1367,7 @@ cdef class hom(_hom):
         tends to grow its argument.
 
         >>> dom = domain(x=10)
-        >>> h = dom("x < 9").ite(dom("x += 1"))
+        >>> h = dom.op("x < 9").ite(dom.op("x += 1"))
         >>> (h.lfp())(dom(x=0)) == dom.full
         True
         """
@@ -1380,7 +1381,7 @@ cdef class hom(_hom):
         tends to shrink its arguments.
 
         >>> dom = domain(x=10)
-        >>> h = dom("x < 9").ite(dom("x += 1"))
+        >>> h = dom.op("x < 9").ite(dom.op("x += 1"))
         >>> (h.gfp())(dom.full) == dom(x=9)
         True
         """
@@ -1395,7 +1396,7 @@ cdef class hom(_hom):
         use `h.invert(p)`.
 
         >>> dom = domain(x=2, y=2)
-        >>> h = dom("x += 1") * dom("x == 0")  # selects x==0, then x+=1
+        >>> h = dom.op("x += 1") * dom.op("x == 0")  # selects x==0, then x+=1
         >>> f = h.invert()
         >>> f(dom(x=1, y=1)) == dom(x=0, y=1)
         True
@@ -1424,7 +1425,7 @@ cdef class hom(_hom):
 
         >>> dom = domain(x=(0, 1))
         >>> d = dom(x=0)
-        >>> h = dom("x += 5")
+        >>> h = dom.op("x += 5")
         >>> h(d) <= dom.full
         False
         >>> for v in h(d).values():
@@ -1443,6 +1444,7 @@ cdef class hom(_hom):
 ##
 
 cdef extern from "dddwrap.h" :
+    # sdd
     cdef SDD sdd_new_SDDs(int var, const SDD &val, const SDD &s)
     cdef SDD sdd_new_SDDd(int var, const DDD &val, const SDD &s)
     cdef const SDD sdd_ONE
@@ -1459,6 +1461,38 @@ cdef extern from "dddwrap.h" :
     cdef SDD sdd_minus(SDD &a, SDD &b)
     cdef bint sdd_eq(SDD &a, SDD &b)
     cdef bint sdd_ne(SDD &a, SDD &b)
+    # sdd iterators
+    ctypedef DDD* DDD_star
+    ctypedef vector[pair[DDD_star,SDD]] sdd_iterator
+    cdef sdd_iterator sdd_iterator_begin(SDD s)
+    cdef void sdd_iterator_next(sdd_iterator i)
+    cdef bint sdd_iterator_end(sdd_iterator i, SDD s)
+    cdef SDD sdd_iterator_sdd(sdd_iterator i)
+    cdef bint sdd_iterator_value_is_DDD(sdd_iterator i)
+    cdef bint sdd_iterator_value_is_SDD(sdd_iterator i)
+    cdef bint sdd_iterator_value_is_GSDD(sdd_iterator i)
+    cdef SDD *sdd_iterator_SDD_value(sdd_iterator i)
+    cdef SDD *sdd_iterator_GSDD_value(sdd_iterator i)
+    cdef DDD *sdd_iterator_DDD_value(sdd_iterator i)
+    # shom
+    cdef Shom shom_new_Shom (const SDD &s)
+    cdef Shom shom_new_Shom_null ()
+    cdef Shom shom_new_Shom_var_ddd(int var, const DDD &val, const Shom &s)
+    cdef Shom shom_new_Shom_var_sdd(int var, const SDD &val, const Shom &s)
+    cdef Shom shom_neg(const Shom &s)
+    cdef bint shom_eq(const Shom &a, const Shom &b)
+    cdef bint shom_ne(const Shom &a, const Shom &b)
+    cdef SDD shom_call(const Shom &h, const SDD &s)
+    cdef Shom shom_union(const Shom &a, const Shom &b)
+    cdef Shom shom_circ(const Shom &a, const Shom &b)
+    cdef Shom shom_intersect_Shom_SDD(const Shom &a, const SDD &b)
+    cdef Shom shom_intersect_SDD_Shom(const SDD &a, const Shom &b)
+    cdef Shom shom_intersect_Shom_Shom(const Shom &a, const Shom &b)
+    cdef Shom shom_minus_Shom_SDD(const Shom &a, const SDD &b)
+    cdef Shom shom_minus_Shom_Shom(const Shom &a, const Shom &b)
+    cdef Shom shom_invert(const Shom &s, const SDD &d)
+    cdef Shom fixpoint(const Shom &s)
+
 
 cdef class sdomain(_domain):
     def __cinit__(self, **doms):
@@ -1474,30 +1508,50 @@ cdef class sdomain(_domain):
         self.id.h = Shom()
 
     def __init__(self, **doms):
+        """
+        >>> dom = sdomain(a=domain(x=2, y=2), b=domain(u=2, v=2))
+        >>> dom.vars
+        ('a', 'b')
+        >>> dom.depth
+        2
+        >>> dom.doms
+        {'a': {'x': {0, 1}, 'y': {0, 1}}, 'b': {'u': {0, 1}, 'v': {0, 1}}}
+        >>> len(dom.full)
+        16
+        """
         cdef int rank
         cdef str name
         cdef object dom
         cdef sdd tmp
-        for rank, (name, dom) in doms.items():
+        for rank, (name, dom) in enumerate(doms.items()):
             if not isinstance(dom, _domain):
                 raise TypeError(f"expected 'domain' or 'sdomain' object but got"
                                 f" '{dom.__class__.__name__}'")
             self.vmap[name] = rank
             self.vmap[rank] = name
-            self.sdom[name] = self.sdom[rank] = dom
+            self.ddoms[name] = self.ddoms[rank] = dom
         tmp = self()
         self.full.s = tmp.s
-        self.one.s = sdd_new_EMPTY()
-        self.empty.s = sdd_new_ONE()
+        self.empty.s = sdd_new_EMPTY()
+        self.one.s = sdd_new_ONE()
 
     def __eq__(self, object other):
+        """
+        >>> dom1 = sdomain(a=domain(x=2, y=2), b=domain(u={0, 1}, v={0, 1}))
+        >>> dom2 = sdomain(a=domain(x={0, 1}, y={0, 1}), b=domain(u=2, v=2))
+        >>> dom3 = sdomain(a=domain(x=2, y=2), b=domain(m=2, n=2))
+        >>> dom1 == dom2
+        True
+        >>> dom3 == dom1
+        False
+        """
         cdef int r
         cdef sdomain oth
         if not isinstance(other, sdomain):
             return False
         oth = <sdomain>other
         return (self.vars == oth.vars
-                and all(self.sdom[r] == oth.sdom[r]
+                and all(self.ddoms[r] == oth.ddoms[r]
                         for r in range(self.depth)))
 
     def __ne__(self, object other):
@@ -1505,7 +1559,11 @@ cdef class sdomain(_domain):
 
     @property
     def doms(self):
-        return {v: self.sdoms[v].doms for v in self.vars}
+        """
+        >>> sdomain(a=domain(x=2, y=2), b=domain(u=2, v=2)).doms
+        {'a': {'x': {0, 1}, 'y': {0, 1}}, 'b': {'u': {0, 1}, 'v': {0, 1}}}
+        """
+        return {v: self.ddoms[v].doms for v in self.vars}
 
     cdef inline void checks(self, sdd s):
         if s.f != self:
@@ -1528,13 +1586,20 @@ cdef class sdomain(_domain):
         return obj
 
     def __call__(self, **values):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> ab(a=xy(x=0, y=0)) == ab(a=xy(x=0, y=0), b=uv.full)
+        True
+        """
         cdef SDD s = sdd_new_ONE()
         cdef int r
         cdef str n
         cdef object dom
         for r in reversed(range(self.depth)):
             n = self.vmap[r]
-            dom = self.sdom[r]
+            dom = self.ddoms[r]
             if isinstance(dom, domain):
                 if n in values:
                     s = sdd_new_SDDd(r, (<ddd>(values[n])).d, s)
@@ -1546,3 +1611,551 @@ cdef class sdomain(_domain):
                 else:
                     s = sdd_new_SDDs(r, (<sdomain>dom).full.s, s)
         return self.makesdd(s)
+
+    def const(self, sdd vals=None, **values):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> h = ab.const(a=xy(x=0, y=0))
+        >>> h(ab.full) == ab(a=xy(x=0, y=0), b=uv.full)
+        True
+        """
+        cdef sdd s
+        if vals is None:
+            s = self(**values)
+        elif values:
+            raise TypeError("expected no keywords arguments when a positional"
+                            " argument has been supplied")
+        else:
+            s = vals
+        return self.makeshom(Shom(s.s))
+
+    def op(self, **values):
+        # FIXME: build a shom from shom/hom on its variables
+        raise NotImplementedError
+
+    def save(self, str path, *sdds, **headers):
+        # FIXME: collect and save inner DDD, save SDD nesting as header
+        raise NotImplementedError
+
+    def load(self, str path):
+        # FIXME: reload saved DDD and SDD nesting
+        raise NotImplementedError
+
+
+##
+## sdd
+##
+
+
+cdef class sedge(_edge):
+    def __cinit__(self, str var, _dd val, sdd succ):
+        self.var = var
+        self.val = val
+        self.succ = succ
+
+    cdef inline tuple tuple(self):
+        return (self.succ.f.vmap[self.var], self.val)
+
+    cdef inline void check(self, sedge other):
+        if self.succ.f != other.succ.f:
+            raise ValueError("not same domains")
+
+    @property
+    def domain(self):
+        return self.succ.f
+
+    def __eq__(self, object other):
+        cdef sedge oth
+        if not isinstance(other, sedge):
+            return False
+        oth = <sedge>other
+        return (self.succ.f == oth.succ.f
+                and self.var == oth.var
+                and self.val == oth.val
+                and self.succ == oth.succ)
+
+    def __ne__(self, object other):
+        return not self.__eq__(other)
+
+    def __lt__(self, sedge other):
+        self.check(other)
+        return self.tuple() < other.tuple()
+
+    def __le__(self, sedge other):
+        self.check(other)
+        return self.tuple() <= other.tuple()
+
+    def __gt__(self, sedge other):
+        self.check(other)
+        return self.tuple() > other.tuple()
+
+    def __ge__(self, sedge other):
+        self.check(other)
+        return self.tuple() >= other.tuple()
+
+
+cdef class sdd(_dd):
+    def __init__(self):
+        raise TypeError("class 'sdd' should not be instantiated directly")
+
+    @property
+    def domain(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s = ab(a=xy(x=0, y=0), b=uv(u=1, v=1))
+        >>> s.domain is ab
+        True
+        """
+        return self.f
+
+    @property
+    def vars(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s = ab(a=xy(x=0, y=0), b=uv(u=1, v=1))
+        >>> s.vars
+        ('a', 'b')
+        >>> e = next(iter(s))
+        >>> e.succ.vars
+        ('b',)
+        """
+        return self.f.vars[self.s.variable():]
+
+    @property
+    def head(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s = ab(a=xy(x=0, y=0), b=uv(u=1, v=1))
+        >>> s.head
+        'a'
+        >>> e = next(iter(s))
+        >>> e.succ.head
+        'b'
+        """
+        return self.f.vmap[self.s.variable()]
+
+    @property
+    def stop(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> ab.one.stop
+        True
+        >>> ab.empty.stop
+        True
+        >>> s = ab(a=xy(x=0, y=0), b=uv(u=1, v=1))
+        >>> s.stop
+        False
+        >>> e = next(iter(s))
+        >>> e.succ.stop
+        False
+        >>> e = next(iter(e.succ))
+        >>> e.succ.stop
+        True
+        """
+        return sdd_is_STOP(self.s)
+
+    def __or__(self, sdd other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> s01 != s10
+        True
+        >>> s01 & s10 == ab.empty
+        True
+        >>> s00 | s01 | s10 | s11 == ab.full
+        True
+        >>> s01 | ab.empty == s01
+        True
+        """
+        self.f.checks(other)
+        return self.f.makesdd(sdd_union(self.s, other.s))
+
+    def __xor__(self, sdd other):
+        return (self | other) - (self & other)
+
+    def __and__(self, object other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s01 != s10
+        True
+        >>> s01 & s10 == ab.empty
+        True
+        >>> s01 & ab.full == s01
+        True
+        """
+        cdef sdd s
+        cdef shom h
+        if isinstance(other, sdd):
+            s = <sdd>other
+            self.f.checks(s)
+            return self.f.makesdd(sdd_intersect(self.s, s.s))
+        elif isinstance(other, shom):
+            h = <shom>other
+            self.f.checkh(h)
+            return self.f.makeshom(shom_intersect_SDD_Shom(self.s, h.h))
+        else:
+            raise TypeError(f"expected 'sdd' or 'shom' object but got"
+                            f" '{other.__class__.__name__}'")
+
+    def __invert__(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> ~s00 == ab.full - s00
+        True
+        >>> ~s00 == s01 | s10 | s11
+        True
+        """
+        return self.f.full - self
+
+    def __sub__(self, sdd other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> ab.full - s00 == s01 | s10 | s11
+        True
+        """
+        self.f.checks(other)
+        return self.f.makesdd(sdd_minus(self.s, other.s))
+
+    def __eq__(self, object other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> ab.full == s00 | s01 | s10 | s11
+        True
+        >>> s01 == s10
+        False
+        """
+        cdef sdd oth
+        if not isinstance(other, sdd):
+            return False
+        oth = <sdd>other
+        return self.f == oth.f and sdd_eq(self.s, oth.s)
+
+    def __ne__(self, object other):
+        return not self.__eq__(other)
+
+    def __le__(self, sdd other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> s00 | s01 | s10 | s11 <= ab.full
+        True
+        >>> s00 | s01 | s10 <= ab.full
+        True
+        >>> s00 | s01 | s10 <= s01 | s10 | s11
+        False
+        """
+        return (self | other) == other
+
+    def __lt__(self, sdd other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> s00 | s01 | s10 | s11 < ab.full
+        False
+        >>> s00 | s01 | s10 < ab.full
+        True
+        >>> s00 | s01 | s10 < s01 | s10 | s11
+        False
+        """
+        return self != other and self <= other
+
+    def __ge__(self, sdd other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> ab.full >= s00 | s01 | s10 | s11
+        True
+        >>> ab.full >= s00 | s01 | s10
+        True
+        >>> s00 | s01 | s10 >= s01 | s10 | s11
+        False
+        """
+        return (self | other) == self
+
+    def __gt__(self, sdd other):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> s10 = ab(a=xy(x=1), b=uv(u=0))
+        >>> s11 = ab(a=xy(x=1), b=uv(u=1))
+        >>> ab.full > s00 | s01 | s10 | s11
+        False
+        >>> ab.full > s00 | s01 | s10
+        True
+        >>> s00 | s01 | s10 > s01 | s10 | s11
+        False
+        """
+        return self != other and self >= other
+
+    def __len__(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> len(s00)
+        4
+        >>> len(s00 | s01)
+        8
+        >>> len(s00 & s01)
+        0
+        >>> len(ab.empty)
+        0
+        >>> len(ab.one)
+        1
+        >>> len(ab.full)
+        16
+        """
+        return int(self.s.nbStates())
+
+    def __bool__(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> s00 = ab(a=xy(x=0), b=uv(u=0))
+        >>> s01 = ab(a=xy(x=0), b=uv(u=1))
+        >>> bool(s00)
+        True
+        >>> bool(s00 | s01)
+        True
+        >>> bool(s00 & s01)
+        False
+        >>> bool(ab.empty)
+        False
+        >>> bool(ab.one)
+        True
+        """
+        return self.s.nbStates() > 0
+
+    def __hash__(self):
+        return int(self.s.set_hash())
+
+    cdef SDD _pick(self, SDD s):
+        cdef sdd_iterator it
+        cdef SDD* SDD_ptr
+        cdef DDD* DDD_ptr
+        cdef sdd sdd_val
+        cdef ddd ddd_val
+        cdef sdomain sdd_dom
+        cdef domain ddd_dom
+        if sdd_is_STOP(s):
+            return s
+        it = sdd_iterator_begin(s)
+        if sdd_iterator_end(it, s):
+            return sdd_new_EMPTY()
+        if sdd_iterator_value_is_DDD(it):
+            DDD_ptr = sdd_iterator_DDD_value(it)
+            ddd_dom = self.f.ddoms[s.variable()]
+            ddd_val = ddd_dom.makeddd(DDD_ptr[0]).pick()
+            return sdd_new_SDDd(s.variable(),
+                                ddd_val.d,
+                                self._pick(sdd_iterator_sdd(it)))
+        else:
+            if sdd_iterator_value_is_SDD(it):
+                SDD_ptr = sdd_iterator_SDD_value(it)
+            elif sdd_iterator_GSDD_value(it):
+                SDD_ptr = sdd_iterator_GSDD_value(it)
+            else:
+                raise RuntimeError("unknown DD type")
+            sdd_dom = self.f.ddoms[s.variable()]
+            sdd_val = sdd_dom.makesdd(SDD_ptr[0]).pick()
+            return sdd_new_SDDs(s.variable(),
+                                sdd_val.s,
+                                self._pick(sdd_iterator_sdd(it)))
+
+    def pick(self, as_dict=False):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> p = ab.full.pick()
+        >>> p <= ab.full
+        True
+        >>> len(p)
+        1
+        """
+        cdef sdd p = self.f.makesdd(self._pick(self.s))
+        cdef dict d
+        if as_dict:
+            for d in p.values():
+                return d
+        else:
+            return p
+
+    def __iter__(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> # ab.full  =>  (a)---xy.full-->(b)---uv.full-->[ONE]
+        >>> for i, e in enumerate(sorted(ab.full)):
+        ...     assert i == 0
+        ...     assert e.var == "a"
+        ...     assert e.val == xy.full
+        ...     for j, f in enumerate(sorted(e.succ)):
+        ...         assert j == 0
+        ...         assert f.var == "b"
+        ...         assert f.val == uv.full
+        ...         assert f.succ == ab.one
+        """
+        cdef sdd_iterator it
+        cdef SDD* SDD_ptr
+        cdef DDD* DDD_ptr
+        cdef object dom
+        cdef domain ddd_dom
+        cdef sdomain sdd_dom
+        if not self.stop:
+            dom = self.f.ddoms[self.head]
+            if isinstance(dom, domain):
+                ddd_dom = <domain>dom
+            else:
+                sdd_dom = <sdomain>dom
+            it = sdd_iterator_begin(self.s)
+            while not sdd_iterator_end(it, self.s):
+                if sdd_iterator_value_is_DDD(it):
+                    DDD_ptr = sdd_iterator_DDD_value(it)
+                    yield sedge(self.head,
+                                ddd_dom.makeddd(DDD_ptr[0]),
+                                self.f.makesdd(sdd_iterator_sdd(it)))
+                else:
+                    if sdd_iterator_value_is_SDD(it):
+                        SDD_ptr = sdd_iterator_SDD_value(it)
+                    elif sdd_iterator_value_is_GSDD(it):
+                        SDD_ptr = sdd_iterator_GSDD_value(it)
+                    else:
+                        raise RuntimeError("unknown DD type")
+                    yield sedge(self.head,
+                                sdd_dom.makesdd(SDD_ptr[0]),
+                                self.f.makesdd(sdd_iterator_sdd(it)))
+                sdd_iterator_next(it)
+
+    def values(self):
+        """
+        >>> xy = domain(x=2, y=2)
+        >>> uv = domain(u=2, v=2)
+        >>> ab = sdomain(a=xy, b=uv)
+        >>> values = list(ab.full.values())
+        >>> len(values)
+        16
+        >>> for a in ({'x': x, 'y': y} for x in [0, 1] for y in [0, 1]):
+        ...     for b in ({'u': u, 'v': v} for u in [0, 1] for v in [0, 1]):
+        ...         assert {'a': a, 'b': b} in values
+        """
+        cdef sedge e
+        cdef dict s
+        if self.stop:
+            yield {}
+        else:
+            for e in self:
+                for s in e.succ.values():
+                    for v in e.val.values():
+                        yield {e.var: v} | s
+
+    def domains(self, dict doms=None):
+        cdef sedge e
+        if doms is None:
+            doms = {}
+        doms.setdefault(self.head, self.ddoms[self.head].empty)
+        for e in self:
+            doms[e.var] = doms[e.var] | e.val
+            e.succ.domains(doms)
+        return doms
+
+    def _dot(self, out, nid, node, parent=None):
+        nid[node] = len(nid)
+        if node.stop:
+            out.write(f'    "n{nid[node]}" [shape=square, label="1"];\n')
+        elif parent is None:
+            out.write(f'    "n{nid[node]}" [label="{node.head}"];\n')
+        else:
+            out.write(f'    "n{nid[node]}" [label="{node.head}@{parent}"];\n')
+        for e in node:
+            if None in nid and e.val in nid[None]:
+                lbl = nid[None][e.val]
+            else:
+                nid.setdefault(None, {})
+                lbl = nid[None][e.val] = len(nid[None])
+                e.val._dot(out, nid, e.val, lbl) 
+            if e.succ not in nid:
+                self._dot(out, nid, e.succ)
+            out.write(f'    n{nid[node]} -> n{nid[e.succ]} [label="@{lbl}"];\n')
+
+    def dot(self, path):
+        path = Path(path)
+        path_dot = path.with_suffix(".dot")
+        with path_dot.open("w") as out:
+            out.write("digraph sdd {\n")
+            self._dot(out, defaultdict(), self)
+            out.write("}\n")
+        if (fmt := path.suffix.lower().lstrip(".")) != "dot":
+            check_call(["dot", f"-T{fmt}", "-o", path, path_dot])
+
+
+##
+## shom
+##
+
+
+cdef class shom:
+    def __init__(self):
+        raise TypeError("class 'shom' should not be instantiated directly")
+
+    def __call__(self, sdd s):
+        return self.f.makesdd(shom_call(self.h, s.s))
