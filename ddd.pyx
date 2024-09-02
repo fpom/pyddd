@@ -1636,9 +1636,26 @@ cdef class sdomain(_domain):
             s = vals
         return self.makeshom(Shom(s.s))
 
-    def op(self, **values):
-        # FIXME: build a shom from shom/hom on its variables
-        raise NotImplementedError
+    def op(self, **ops):
+        cdef Shom h = self.id.h
+        cdef str var
+        cdef int num
+        cdef object op, dom
+        cdef shom sdd_op
+        cdef hom ddd_op
+        for var, op in ops.items():
+            dom = self.ddoms[var]
+            num = self.vmap[var]
+            if isinstance(dom, domain):
+                ddd_op = <hom>op
+                # FIXME: what to do?
+            elif isinstance(dom, sdomain):
+                sdd_op = <shom>op
+                # FIXME: what to do?
+            else:
+                raise TypeError(f"expected 'hom' or 'shom' object"
+                                f" but got {op.__class__.__name__}")
+        return self.makeshom(h)
 
     def save(self, str path, *sdds, **headers):
         # FIXME: collect and save inner DDD, save SDD nesting as header
