@@ -81,7 +81,7 @@ setup(
                 include_dirs=[str(DDDINC)],
                 libraries=["DDD"],
                 library_dirs=[str(DDDLIB)],
-                extra_compile_args=["-fno-lto", "-std=c++11"],
+                extra_compile_args=["-std=c++11"],
                 extra_link_args=["-Wl,--no-as-needed"],
             )
         ],
