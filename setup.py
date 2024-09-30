@@ -44,7 +44,7 @@ def which_ddd():
 DDDPATH = which_ddd()
 if DDDPATH is None:
     sys.stderr.write("*** could not find libddd ***")
-    exit(1)
+    sys.exit(1)
 
 DDDLIB = DDDPATH.parent
 DDDINC = DDDLIB.parent / "include"
