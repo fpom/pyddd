@@ -1,26 +1,12 @@
+import os
+import sys
+import ctypes
+import ctypes.util
+
 from distutils.core import setup
 from Cython.Build import cythonize
 from distutils.extension import Extension
-from distutils.command.install import install as _install
 from pathlib import Path
-
-import tarfile, os, ctypes, ctypes.util
-
-##
-## install precompiled libDDD
-##
-
-BUILD = "build"
-DDDTGZ = "libDDD.tar.gz"
-DDDINC = f"{BUILD}/include"
-
-Path(BUILD).mkdir(exist_ok=True)
-with tarfile.open(DDDTGZ) as tar:
-    tar.extractall(BUILD)
-
-##
-## detect libDDD.so
-##
 
 
 def which_ddd():
@@ -42,7 +28,7 @@ def which_ddd():
     dl_iterate_phdr.argtypes = [callback_t, ctypes.c_char_p]
     dl_iterate_phdr.restype = ctypes.c_int
 
-    def callback(info, size, data):
+    def callback(info, _, data):
         if data in info.contents.dlpi_name:
             found.append(info.contents.dlpi_name)
         return 0
@@ -50,33 +36,19 @@ def which_ddd():
     _ = ctypes.CDLL(so_name)
     dl_iterate_phdr(callback_t(callback), os.fsencode(so_name))
     if found:
-        return found[0].decode()
+        return Path(found[0].decode())
     else:
         return None
 
 
 DDDPATH = which_ddd()
-if not DDDPATH:
+if DDDPATH is None:
+    sys.stderr.write("*** could not find libddd ***")
+    exit(1)
 
-    class install(_install):
-        def run(self):
-            self.copy_tree(f"{BUILD}/include", f"{self.install_base}/include")
-            self.copy_tree(f"{BUILD}/lib", f"{self.install_base}/lib")
-            self.mkpath(self.install_lib)
-            super().run()
-
-    setup(cmdclass={"install": install})
-
-DDDPATH = which_ddd()
-if not DDDPATH:
-    DDDPATH = f"{BUILD}/lib/libDDD.so"
-    print(
-        f"### libDDD not found, using precompiled {DDDPATH}\n"
-        f"### this will not work until libDDD is properly installed"
-    )
-
-DDDLIB = str(Path(DDDPATH).parent)
-print(f"### using '{DDDPATH}' ###")
+DDDLIB = DDDPATH.parent
+DDDINC = DDDLIB.parent / "include"
+os.environ["CXX"] = "g++"
 
 ##
 ## setup
@@ -106,9 +78,9 @@ setup(
                 "ddd",
                 ["ddd.pyx"],
                 language="c++",
-                include_dirs=[DDDINC],
+                include_dirs=[str(DDDINC)],
                 libraries=["DDD"],
-                library_dirs=[DDDLIB],
+                library_dirs=[str(DDDLIB)],
                 extra_compile_args=["-fno-lto", "-std=c++11"],
                 extra_link_args=["-Wl,--no-as-needed"],
             )

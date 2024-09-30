@@ -4,3 +4,5 @@ __pycache__
 +*
 ,*
 ddd.cpp
+dist
+pyddd.egg-info

@@ -1,25 +1,60 @@
-A Python binding for libDDD
-===========================
+# A Python binding for libDDD
 
-(C) 2018 Franck Pommereau <franck.pommereau@univ-evry.fr>
+(C) 2024 [Franck Pommereau](franck.pommereau@univ-evry.fr)
 
 This library provides a Python binding for the Data Decision Diagrams
-library (libDDD) https://github.com/lip6/libDDD
+library [libDDD](https://github.com/lip6/libDDD)
 
 ## Requirements
 
- - Python 3 (tested with 3.5.2), this binding is not expected to work
-   with Python 2
- - Cython (tested with 0.27.3)
-
-libDDD (tested with 1.9.0) will be automatically downloaded and installed
-during the installation
+- Python 3
+- Cython
+- libDDD (see below)
+- G++ (does not work with clang)
 
 ## Installation
 
-Run `python setup.py install` as usual.
+First, `libDDD` needs to be installed. Because it uses very tricky
+compilation options, a suitable precompiled version is
+[provided here](https://github.com/fpom/pyddd/raw/master/libDDD.tar.gz).
+It contains two directories: `lib` and `include` that should be copied
+so that `ld` will find `lib/libDDD.so`. Installation will assume that
+both directories reside together into the same location.
 
-You may check the doctests in the module by running `python3 test.py`,
+### Installing `libDDD` system-wide
+
+- copy to `/usr/local/lib` and `/usr/local/include`
+- add `/usr/local/lib` to `/set/ld.so.conf.d/ldbbb.conf`
+- run `ldconfig` as root
+
+### Installing `libDDD` in a virtual environment
+
+- activate the virtual environment
+- copy to `$VIRTUAL_ENV/lib` and `$VIRTUAL_ENV/include`
+- add environment variable `LD_LIBRRAY_PATH=$VIRTUAL_ENV/lib`
+
+This last step can be achieved by adding a line with
+`export LD_LIBRRAY_PATH=$VIRTUAL_ENV/lib` at the end of file
+`$VIRTUAL_ENV/bin/activate`.
+
+### Installing `libDDD` in home directory
+
+- copy to `$HOME/.local/lib` and `$HOME/.local/include`
+- add environment variable `LD_LIBRRAY_PATH=$HOME/.local/lib`
+
+This last item can be achieved by addding a line with
+`export LD_LIBRRAY_PATH=$HOME/.local/lib` to file `~/.bashrc`
+(or something equivalent for another shell).
+
+### Installing `pyddd` itself
+
+Clone the repository with `git clone https://github.com/fpom/pyddd.git`.
+Change to the created directory with `cd pyddd`. Run`pip install .` as usual.
+
+If `libDDD` has been installed independently, you may run
+`pip install git+https://github.com/fpom/pyddd.git` directly.
+
+You may check the doctests in the module by running `python3 test/test.py`,
 which should produce no output if everything goes well.
 
 ## Usage

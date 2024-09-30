@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "wheel", "Cython"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyddd"
+version = "0.1"
+authors = [
+  { name = "Franck Pommereau", email = "franck.pommereau@univ-evry.fr" },
+]
+description = " A Python binding of libDDD"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Scientific/Engineering",
+  "License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)",
+  "Programming Language :: Python :: 3.9",
+  "Operating System :: OS Independent"
+]
+dependencies = [
+]
+
+[project.urls]
+Homepage = "https://github.com/fpom/hrm"
+"Bug Tracker" = "https://github.com/fpom/hrm/issues"

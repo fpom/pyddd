@@ -288,7 +288,7 @@ cdef class ddd (xdd) :
     def __xor__ (ddd self, ddd other) :
         """Disjoint union: `a^b` is `(a|b) - (a&b)`.
 
-        >>> d = (ddd(a=1, b=2) | ddd(a=3, b=4)) ^ (ddd(a=3, b=4), ddd(a=5, b=6))
+        >>> d = (ddd(a=1, b=2) | ddd(a=3, b=4)) ^ (ddd(a=3, b=4) | ddd(a=5, b=6))
         >>> list(sorted(d))
         [(1, 2), (5, 6)]
         """
@@ -558,7 +558,7 @@ cdef class ddd (xdd) :
 
         >>> ddd().stop()
         True
-        >>> ddd() == ddd.one()
+        >>> ddd() == ddd.empty()
         True
         >>> ddd(a=1).stop()
         False
@@ -951,9 +951,9 @@ cdef class sdd (xdd) :
             l = []
             for v in val :
                 if isinstance(v, sdd) :
-                    l.append(v.nest())
+                    l.append((<sdd>v).nest())
                 else :
-                    l.append(iter(v))
+                    l.append(iter(<ddd>v))
             for t in itertools.product(*l) :
                 yield t
     def edges (sdd self) :
