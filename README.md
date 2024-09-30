@@ -9,8 +9,12 @@ library [libDDD](https://github.com/lip6/libDDD)
 
 - Python 3
 - Cython
+- G++ v.11 (does not work with clang)
 - libDDD (see below)
-- G++ (does not work with clang)
+
+G++ version 11 is needed to ensure compatibility with precompiled binaries
+(otherwise, compilation will fail with `lto1` complaining avout incompatible
+bytecode streams).
 
 ## Installation
 
