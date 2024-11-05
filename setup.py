@@ -1,5 +1,6 @@
 import os
 import sys
+import site
 import ctypes
 import ctypes.util
 
@@ -50,6 +51,7 @@ DDDLIB = DDDPATH.parent
 DDDINC = DDDLIB.parent / "include"
 os.environ["CXX"] = "g++"
 
+
 ##
 ## setup
 ##
@@ -87,4 +89,5 @@ setup(
         ],
         language_level=3,
     ),
+    data_files=[(site.getsitepackages(".")[0], ["ddd.pxd"])],
 )
