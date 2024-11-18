@@ -1,56 +1,36 @@
 import os
-import sys
 import site
-import ctypes
-import ctypes.util
+import tarfile
 
-from distutils.core import setup
-from Cython.Build import cythonize
-from distutils.extension import Extension
 from pathlib import Path
 
-
-def which_ddd():
-    so_name = ctypes.util.find_library("DDD")
-    if not so_name:
-        return None
-    found = []
-
-    class dl_phdr_info(ctypes.Structure):
-        _fields_ = [("padding0", ctypes.c_void_p), ("dlpi_name", ctypes.c_char_p)]
-
-    callback_t = ctypes.CFUNCTYPE(
-        ctypes.c_int,
-        ctypes.POINTER(dl_phdr_info),
-        ctypes.POINTER(ctypes.c_size_t),
-        ctypes.c_char_p,
-    )
-    dl_iterate_phdr = ctypes.CDLL("libc.so.6").dl_iterate_phdr
-    dl_iterate_phdr.argtypes = [callback_t, ctypes.c_char_p]
-    dl_iterate_phdr.restype = ctypes.c_int
-
-    def callback(info, _, data):
-        if data in info.contents.dlpi_name:
-            found.append(info.contents.dlpi_name)
-        return 0
-
-    _ = ctypes.CDLL(so_name)
-    dl_iterate_phdr(callback_t(callback), os.fsencode(so_name))
-    if found:
-        return Path(found[0].decode())
-    else:
-        return None
+from distutils.core import setup
+from setuptools.command.install import install
+from distutils.extension import Extension
+from Cython.Build import cythonize
 
 
-DDDPATH = which_ddd()
-if DDDPATH is None:
-    sys.stderr.write("*** could not find libddd ***")
-    sys.exit(1)
+##
+## install libDDD
+##
 
-DDDLIB = DDDPATH.parent
-DDDINC = DDDLIB.parent / "include"
+
+class InstallDDD(install):
+    # install libDDD together with Python package
+    def run(self):
+        super().run()
+        with tarfile.TarFile.open("libDDD.tar.gz") as tar:
+            tar.extractall(self.install_base, filter="fully_trusted")
+
+
+# install libDDD lcoally for build
+DDDBASE = Path("libDDD").absolute()
+with tarfile.TarFile.open("libDDD.tar.gz") as tar:
+    tar.extractall(DDDBASE, filter="fully_trusted")
+DDDLIB = DDDBASE / "lib"
+DDDINC = DDDBASE / "include"
+os.environ["LD_LIBRARY_PATH"] = str(DDDLIB)
 os.environ["CXX"] = "g++"
-
 
 ##
 ## setup
@@ -74,6 +54,8 @@ setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
     ],
+    # ensure libDDD is installed
+    cmdclass={"install": InstallDDD},
     ext_modules=cythonize(
         [
             Extension(
